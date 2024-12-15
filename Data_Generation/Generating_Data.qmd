@@ -1,0 +1,167 @@
+---
+title: "Generating the Data"
+format: html
+---
+
+# 1. Load Packages and Own Functions
+```{r}
+pacman::p_load(remify, remstimate, remstats, shrinkem, parallel)
+load("../Functions/functions.RData")
+```
+
+# 2. Generate Data
+
+## 2.1 Set Effect Sizes (Weak, Medium, Strong)
+
+```{r}
+(effect_sizes <- log(c(1.22, 1.86, 3.00)))
+```
+
+## 2.2 Generate Data
+
+### 2.2.1 Set Up True Parameters
+
+Here, I use the endogenous effects from "What is the Point of Change? Change Point Detection in Relational Event Models" without CPs. Additionally 3 weak, 3 medium, and 3 strong exogenous effects are added. The remaining endogenous and exogenous effects are set to zero.
+
+```{r}
+# Setting up the parameters (without setting effects to zero)
+parameters <- list("baseline" = -8,
+                   
+                   
+                   # endogenous
+                   "indegreeSender" = 0.7,
+                   "reciprocity" = 0.15,
+                   "outdegreeReceiver" = -0.45,
+                   
+
+                   
+                   "indegreeReceiver" = 0,
+                   "outdegreeSender" = 0,
+                   "totaldegreeSender" = 0,
+                   "totaldegreeReceiver" = 0,
+                   "otp" = 0,
+                   "itp" = 0,
+                   "isp" = 0,
+                   "psABBA" = 0,
+                   "psABBY" = 0,
+                   "psABXA" = 0,
+                   "psABXB" = 0,
+                   "psABXY" = 0,
+                   "psABAY" = 0,
+                   "psABAB" = 0,
+                   "rrankSend" = 0,
+                   "rrankReceive" = 0,
+                   "recencyContinue" = 0,
+                   "recencySendSender" = 0,
+                   "recencyReceiveReceiver" = 0,
+                   "recencySendReceiver" = 0,
+                   "recencyReceiveSender" = 0,
+                   "osp" = 0,
+                   "inertia" = 0,
+                   
+                   # exogenous
+                   # numeric
+                   "minimum_z1" = effect_sizes[1],
+                   "maximum_z1" = effect_sizes[1],
+                   
+                   "minimum_z2" = effect_sizes[2],
+                   "maximum_z2" = effect_sizes[2],
+                   
+                   "minimum_z3" = effect_sizes[3],
+                   "maximum_z3" = effect_sizes[3],
+                   
+                   # categorical
+                   "same_z4" = effect_sizes[1],
+                   "same_z5" = effect_sizes[2],
+                   "same_z6" = effect_sizes[3],
+                   
+                   
+                   # unrelated exogenous
+                   "minimum_z7" = 0,
+                   "maximum_z7" = 0,
+                   
+                   "minimum_z8" = 0,
+                   "maximum_z8" = 0,
+                   
+                   "minimum_z9" = 0,
+                   "maximum_z9" = 0,
+                   
+                   "minimum_z10" = 0,
+                   "maximum_z10" = 0,
+
+                   "minimum_z11" = 0,
+                   "maximum_z11" = 0,
+                   
+                   "same_z12" = 0,
+                   "same_z13" = 0,
+                   "same_z14" = 0,
+                   "same_z15" = 0,
+                   "same_z16" = 0
+                   )
+```
+
+#### Save Parameters
+```{r}
+save(parameters, file = "../GeneratedData/parameters.RData")
+```
+
+## 2.2.2 Generate Exogenous Actor Attributes
+
+```{r}
+set.seed(123)
+# Setting actor attributes for exogenous statistics
+covar <- data.frame(
+    name = 1:50, time = 0,
+    z1 = rnorm(n = 50, mean = 0, sd = 1),
+    z2 = rnorm(n = 50, mean = 0, sd = 1),
+    z3 = rnorm(n = 50, mean = 0, sd = 1),
+    z4 = sample(c(0, 1), 50, replace = TRUE),
+    z5 = sample(c(0, 1), 50, replace = TRUE),
+    z6 = sample(c(0, 1), 50, replace = TRUE),
+    
+    z7 = rnorm(n = 50, mean = 0, sd = 1),
+    z8 = rnorm(n = 50, mean = 0, sd = 1),
+    z9 = rnorm(n = 50, mean = 0, sd = 1),
+    z10 = rnorm(n = 50, mean = 0, sd = 1),
+    z11 = rnorm(n = 50, mean = 0, sd = 1),
+    
+    z12 = sample(c(0, 1), 50, replace = TRUE),
+    z13 = sample(c(0, 1), 50, replace = TRUE),
+    z14 = sample(c(0, 1), 50, replace = TRUE),
+    z15 = sample(c(0, 1), 50, replace = TRUE),
+    z16 = sample(c(0, 1), 50, replace = TRUE)
+  )
+```
+
+#### Save Covariates
+
+```{r}
+save(covar, file = "../GeneratedData/covar.RData")
+```
+
+
+### 2.2.3 Generate Edgelists
+
+```{r}
+# | eval = FALSE
+M <- 3200
+
+# Number of cores to use
+num_cores <- detectCores() - 1
+
+t1 <- Sys.time()
+# Parallel loop
+edgelists <- mclapply(1:30, function(i) {
+  set.seed(i)
+  # Generate the edgelist
+  edgelist <- generate_rem(parameters, covar, M, directed = TRUE)
+}, mc.cores = num_cores)
+
+t2 <- Sys.time()
+
+save(edgelists, file = "../GeneratedData/edgelists.RData")
+
+t2 - t1
+
+```
+

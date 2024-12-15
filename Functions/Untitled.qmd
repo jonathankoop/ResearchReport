@@ -1,0 +1,751 @@
+---
+title: "Creating Functions for the Data Generation and Analysis"
+format: html
+---
+
+# 1. Functions to Generate Data
+
+## 1.1 Generating Formulas from a Parameters List
+
+```{r}
+generate_formula <- function(parameters) {
+  terms <- c("1") # Start with intercept
+  
+  for (name in names(parameters)) {
+    # Detect interaction terms (e.g., "same_z2:difference_z1")
+    if (grepl(":", name)) {
+      # Split interaction terms
+      components <- strsplit(name, ":")[[1]]
+      
+      # Process each component of the interaction
+      processed_components <- sapply(components, function(component) {
+        if (grepl("^difference_", component)) {
+          var <- sub("^difference_", "", component)
+          return(paste0("difference('", var, "', scaling = 'std')"))
+        } else if (grepl("^same_", component)) {
+          var <- sub("^same_", "", component)
+          return(paste0("same('", var, "')"))
+        } else if (grepl("^send_", component)) {
+          var <- sub("^send_", "", component)
+          return(paste0("send('", var, "', scaling = 'std')"))
+        } else if (grepl("^receive_", component)) {
+          var <- sub("^receive_", "", component)
+          return(paste0("receive('", var, "', scaling = 'std')"))
+        } else if (grepl("^tie_", component)) {
+          var <- sub("^tie_", "", component)
+          return(paste0("tie('", var, "', scaling = 'std')"))
+        } else if (grepl("^average_", component)) {
+          var <- sub("^average_", "", component)
+          return(paste0("average('", var, "', scaling = 'std')"))
+        } else if (grepl("^minimum_", component)) {
+          var <- sub("^minimum_", "", component)
+          return(paste0("minimum('", var, "', scaling = 'std')"))
+        } else if (grepl("^maximum_", component)) {
+          var <- sub("^maximum_", "", component)
+          return(paste0("maximum('", var, "', scaling = 'std')"))
+        } else if (grepl("^event_", component)) {
+          var <- sub("^event_", "", component)
+          return(paste0("event('", var, "')"))
+        } else if (grepl("^userStat_", component)) {
+          var <- sub("^userStat_", "", component)
+          return(paste0("userStat('", var, "')"))
+        } else if (component == "inertia") {
+          return("inertia(scaling = 'std')")
+        } else if (component == "indegreeSender") {
+          return("indegreeSender(scaling = 'std')")
+        } else if (component == "indegreeReceiver") {
+          return("indegreeReceiver(scaling = 'std')")
+        } else if (component == "outdegreeSender") {
+          return("outdegreeSender(scaling = 'std')")
+        } else if (component == "outdegreeReceiver") {
+          return("outdegreeReceiver(scaling = 'std')")
+        } else if (component == "totaldegreeDyad") {
+          return("totaldegreeDyad(scaling = 'std')")
+        } else if (component == "totaldegreeSender") {
+          return("totaldegreeSender(scaling = 'std')")
+        } else if (component == "totaldegreeReceiver") {
+          return("totaldegreeReceiver(scaling = 'std')")
+        } else if (component == "degreeMin") {
+          return("degreeMin(scaling = 'std')")
+        } else if (component == "degreeMax") {
+          return("degreeMax(scaling = 'std')")
+        } else if (component == "degreeDiff") {
+          return("degreeDiff(scaling = 'std')")
+        } else if (component == "sp") {
+          return("sp(scaling = 'std')")
+        } else if (component == "reciprocity") {
+          return("reciprocity(scaling = 'std')")
+        } else if (component == "otp") {
+          return("otp(scaling = 'std')")
+        } else if (component == "itp") {
+          return("itp(scaling = 'std')")
+        } else if (component == "osp") {
+          return("osp(scaling = 'std')")
+        } else if (component == "isp") {
+          return("isp(scaling = 'std')")
+        } else if (component == "psABBA") {
+          return("psABBA()")
+        } else if (component == "psABBY") {
+          return("psABBY()")
+        } else if (component == "psABXA") {
+          return("psABXA()")
+        } else if (component == "psABXB") {
+          return("psABXB()")
+        } else if (component == "psABXY") {
+          return("psABXY()")
+        } else if (component == "psABAY") {
+          return("psABAY()")
+        } else if (component == "psABAB") {
+          return("psABAB()")
+        } else if (component == "rrankSend") {
+          return("rrankSend()")
+        } else if (component == "rrankReceive") {
+          return("rrankReceive()")
+        } else if (component == "recencySendSender") {
+          return("recencySendSender()")
+        } else if (component == "recencySendReceiver") {
+          return("recencySendReceiver()")
+        } else if (component == "recencyReceiveSender") {
+          return("recencyReceiveSender()")
+        } else if (component == "recencyReceiveReceiver") {
+          return("recencyReceiveReceiver()")
+        } else if (component == "recencyContinue") {
+          return("recencyContinue()")
+        } else if (component == "FEtype") {
+          return("FEtype()")
+        } else {
+          return("") # Handle or skip any unrecognized components
+        }
+      })
+      
+      # Add interaction term by joining the processed components with `:`
+      terms <- c(terms, paste(processed_components, collapse = " : "))
+      
+    } else if (name == "inertia") {
+      terms <- c(terms, "inertia(scaling = 'std')")
+    } else if (grepl("^difference_", name)) {
+      var <- sub("^difference_", "", name)
+      terms <- c(terms, paste0("difference('", var, "', scaling = 'std')"))
+    } else if (grepl("^same_", name)) {
+      var <- sub("^same_", "", name)
+      terms <- c(terms, paste0("same('", var, "')"))
+    } else if (grepl("^send_", name)) {
+      var <- sub("^send_", "", name)
+      terms <- c(terms, paste0("send('", var, "', scaling = 'std')"))
+    } else if (grepl("^receive_", name)) {
+      var <- sub("^receive_", "", name)
+      terms <- c(terms, paste0("receive('", var, "', scaling = 'std')"))
+    } else if (grepl("^tie_", name)) {
+      var <- sub("^tie_", "", name)
+      terms <- c(terms, paste0("tie('", var, "', scaling = 'std')"))
+    } else if (grepl("^average_", name)) {
+      var <- sub("^average_", "", name)
+      terms <- c(terms, paste0("average('", var, "', scaling = 'std')"))
+    } else if (grepl("^minimum_", name)) {
+      var <- sub("^minimum_", "", name)
+      terms <- c(terms, paste0("minimum('", var, "', scaling = 'std')"))
+    } else if (grepl("^maximum_", name)) {
+      var <- sub("^maximum_", "", name)
+      terms <- c(terms, paste0("maximum('", var, "', scaling = 'std')"))
+    } else if (grepl("^event_", name)) {
+      var <- sub("^event_", "", name)
+      terms <- c(terms, paste0("event('", var, "')"))
+    } else if (grepl("^userStat_", name)) {
+      var <- sub("^userStat_", "", name)
+      terms <- c(terms, paste0("userStat('", var, "')"))
+    } else if (name == "indegreeSender") {
+      terms <- c(terms, "indegreeSender(scaling = 'std')")
+    } else if (name == "indegreeReceiver") {
+      terms <- c(terms, "indegreeReceiver(scaling = 'std')")
+    } else if (name == "outdegreeSender") {
+      terms <- c(terms, "outdegreeSender(scaling = 'std')")
+    } else if (name == "outdegreeReceiver") {
+      terms <- c(terms, "outdegreeReceiver(scaling = 'std')")
+    } else if (name == "totaldegreeDyad") {
+      terms <- c(terms, "totaldegreeDyad(scaling = 'std')")
+    } else if (name == "totaldegreeSender") {
+      terms <- c(terms, "totaldegreeSender(scaling = 'std')")
+    } else if (name == "totaldegreeReceiver") {
+      terms <- c(terms, "totaldegreeReceiver(scaling = 'std')")
+    } else if (name == "degreeMin") {
+      terms <- c(terms, "degreeMin(scaling = 'std')")
+    } else if (name == "degreeMax") {
+      terms <- c(terms, "degreeMax(scaling = 'std')")
+    } else if (name == "degreeDiff") {
+      terms <- c(terms, "degreeDiff(scaling = 'std')")
+    } else if (name == "sp") {
+      terms <- c(terms, "sp(scaling = 'std')")
+    } else if (name == "reciprocity") {
+      terms <- c(terms, "reciprocity(scaling = 'std')")
+    } else if (name == "otp") {
+      terms <- c(terms, "otp(scaling = 'std')")
+    } else if (name == "itp") {
+      terms <- c(terms, "itp(scaling = 'std')")
+    } else if (name == "osp") {
+      terms <- c(terms, "osp(scaling = 'std')")
+    } else if (name == "isp") {
+      terms <- c(terms, "isp(scaling = 'std')")
+    } else if (name == "psABBA") {
+      terms <- c(terms, "psABBA()")
+    } else if (name == "psABBY") {
+      terms <- c(terms, "psABBY()")
+    } else if (name == "psABXA") {
+      terms <- c(terms, "psABXA()")
+    } else if (name == "psABXB") {
+      terms <- c(terms, "psABXB()")
+    } else if (name == "psABXY") {
+      terms <- c(terms, "psABXY()")
+    } else if (name == "psABAY") {
+      terms <- c(terms, "psABAY()")
+    } else if (name == "psABAB") {
+      terms <- c(terms, "psABAB()")
+    } else if (name == "rrankSend") {
+      terms <- c(terms, "rrankSend()")
+    } else if (name == "rrankReceive") {
+      terms <- c(terms, "rrankReceive()")
+    } else if (name == "recencySendSender") {
+      terms <- c(terms, "recencySendSender()")
+    } else if (name == "recencySendReceiver") {
+      terms <- c(terms, "recencySendReceiver()")
+    } else if (name == "recencyReceiveSender") {
+      terms <- c(terms, "recencyReceiveSender()")
+    } else if (name == "recencyReceiveReceiver") {
+      terms <- c(terms, "recencyReceiveReceiver()")
+    } else if (name == "recencyContinue") {
+      terms <- c(terms, "recencyContinue()")
+    } else if (name == "FEtype") {
+      terms <- c(terms, "FEtype()")
+    }
+  }
+  
+  # Combine terms into formula
+  formula_text <- paste("~", paste(terms, collapse = " + "))
+  formula <- as.formula(formula_text)
+  return(formula)
+}
+```
+
+## 1.2 Generating Data
+
+```{r}
+generate_rem <-function (parameters, # parameters for the model
+                         covar, #  data frame with id, time, and covariates
+                         M, # number of events
+                         directed = FALSE # directed or undirected network
+                         ) 
+{
+  # Generate the formula
+  formula <- generate_formula(parameters)
+  j = 1
+  t <- 0 # time of first event
+  dummy <- data.frame(time = 1, actor1 = 1, actor2 = 2)
+  rehOut <-remify::remify(edgelist = dummy,model = "tie",actors = covar$name,
+                          directed = directed,origin = 0)
+  
+  out <- remstats(reh = rehOut, tie_effects = formula, attr_actors  = covar)
+  riskset<-attributes(out)$riskset
+  adj <- matrix(0, 1, ncol = nrow(riskset)) # adjacency matrix
+  
+  
+    param=parameters
+    
+    for (i in 1:M) {
+      
+      beta <- lapply(param, function(x) {
+        if (class(x) == "function") {
+          x(t)
+        }
+        else {
+          x
+        }
+      })
+      logLambda <- out[dim(out)[1],,] %*% unlist(beta) # log of the rate parameter
+      
+      lambda <- exp(logLambda) # rate parameter
+      dt <- rexp(1, sum(lambda)) # time to next event
+      d <- sample(1:nrow(lambda), 1, prob = lambda/sum(lambda)) # next event
+      if (i+((j-1)*M) == 1) {
+        # initialize edgelist for the first event
+        edgelist <- cbind(time = (t + dt), actor1 = riskset[d, 
+                                                            1], actor2 = riskset[d, 2])
+      }
+      else {
+        # bind the new event to the edgelist for next events
+        edgelist <- rbind(edgelist, cbind(time = (t + dt), 
+                                          actor1 = riskset[d, 1], actor2 = riskset[d, 
+                                                                                   2]))
+      }
+      edgelist <- as.data.frame(edgelist) # convert to data frame
+      edgelist$time <- as.numeric(edgelist$time) # convert time to numeric
+      t <- max(edgelist$time) # update time
+      adj <- rbind(adj, adj[i+((j-1)*M), ]) # add a row to the adjacency matrix
+      adj[i + 1+((j-1)*M), d] <- adj[i + 1+((j-1)*M), d] + 1 # update the adjacency matrix (1 for the event)
+      cat(i+((j-1)*M), "\r") # print the current iteration
+      if (i < M) {
+        dummy$time <- dummy$time + t # update the time of the dummy event
+        edgelistTemp <- rbind(edgelist, dummy) # create temp edgelist to calculate endo stats
+        rehOut <-remify::remify(edgelist = edgelistTemp, model = "tie",actors = covar$name,
+                                directed = directed,origin = 0) # remify the temp edgelist
+        
+        
+        
+        if ( i+((j-1)*M)<= M ){
+          out <- remstats(reh = rehOut, tie_effects = formula, attr_actors  = covar) # calculate endo stats
+          } 
+        else{
+          stop<-  i+((j-1)*M)
+          start<- i+((j-1)*M)-M+1
+          
+          out <- remstats(reh = rehOut, tie_effects = formula, attr_actors = covar,memory = "full",start =start, stop =stop , memory_value=400 )
+        }
+      }
+    }
+  edgelist
+}
+```
+
+# 2. Functions for Estimating the Models
+
+## 2.1 Subsetting Generated Edgelists
+
+```{r}
+subset_edgelists <- function(edgelists, m) {
+  for (i in seq_along(edgelists)) {
+    edgelists[[i]] <- edgelists[[i]][1:m,]
+  }
+  return(edgelists)
+}
+```
+
+## 2.2 Estimating Models
+
+```{r}
+estimate_models <- function(edgelists, num_cores, parameters, covar) {
+  set.seed(123)
+  
+  # Parallel processing with mclapply
+  results <- parallel::mclapply(seq_along(edgelists), function(i) {
+    tryCatch({
+      effects <- generate_formula(parameters)
+      reh <- remify(edgelists[[i]], directed = TRUE, model = "tie")
+      statistics <- remstats(reh = reh, tie_effects = effects, attr_actors = covar)
+      fit <- remstimate::remstimate(reh = reh, stats = statistics, method = "MLE", timing = "interval", ncores = num_cores)
+      
+      coefs <- summary(fit)$coefsTab
+      selected_vars_mle_05 <- rownames(coefs[coefs[, 4] < 0.05,])
+      selected_vars_mle_01 <- rownames(coefs[coefs[, 4] < 0.01,])
+      
+      estimates <- coef(fit)
+      cov <- fit$vcov
+      cov[upper.tri(cov)] <- t(cov)[upper.tri(cov)]
+      
+      # Horsehoe
+      shrink_hs <- shrinkem(estimates, cov, type = "horseshoe")
+      coefs_shrink_hs <- summary(shrink_hs)
+      selected_vars_shrink_hs <- rownames(coefs_shrink_hs[coefs_shrink_hs$nonzero == 1,])
+      
+      # Ridge
+      shrink_ridge <- shrinkem(estimates, cov, type = "ridge")
+      coefs_shrink_ridge <- summary(shrink_ridge)
+      selected_vars_shrink_ridge <- rownames(coefs_shrink_ridge[coefs_shrink_ridge$nonzero == 1,])
+      
+      list(
+        mle_coefs = coefs, 
+        selected_vars_mle_05 = selected_vars_mle_05,
+        selected_vars_mle_01 = selected_vars_mle_01,
+        shrink_coefs_hs = coefs_shrink_hs,
+        shrink_coefs_ridge = coefs_shrink_ridge,
+        selected_vars_shrink_hs = selected_vars_shrink_hs,
+        selected_vars_shrink_ridge = selected_vars_shrink_ridge
+      )
+    }, error = function(e) {
+      list(
+        mle_coefs = NULL, 
+        selected_vars_mle_05 = NULL,
+        selected_vars_mle_01 = NULL,
+        shrink_coefs_hs = NULL,
+        shrink_coefs_ridge = NULL,
+        selected_vars_shrink_hs = NULL,
+        selected_vars_shrink_ridge = NULL
+      )
+    })
+  }, mc.cores = num_cores)
+  
+  # Combine results into separate lists
+  list(
+    mle_coefs = lapply(results, `[[`, "mle_coefs"),
+    selected_vars_mle_05 = lapply(results, `[[`, "selected_vars_mle_05"),
+    selected_vars_mle_01 = lapply(results, `[[`, "selected_vars_mle_01"),
+    shrink_coefs_hs = lapply(results, `[[`, "shrink_coefs_hs"),
+    shrink_coefs_ridge = lapply(results, `[[`, "shrink_coefs_ridge"),
+    selected_vars_shrink_hs = lapply(results, `[[`, "selected_vars_shrink_hs"),
+    selected_vars_shrink_ridge = lapply(results, `[[`, "selected_vars_shrink_ridge")
+  )
+}
+
+estimate_edgelists <- function(edgelists, parameters, covar, num_cores, m) {
+  # apply subset edgelists for all m in vector m
+  edgelists_subsetted <- lapply(m, function(m) subset_edgelists(edgelists, m))
+  names(edgelists_subsetted) <- paste0("m=", m) # name the list elements
+  
+  # estimate models for all m in vector m
+  results <- lapply(edgelists_subsetted, function(edgelists) estimate_models(edgelists, num_cores, parameters, covar))
+  
+  # combine results into a list
+  return(results)
+}
+```
+
+# 3. Functions for Data Analysis
+
+## 3.1 Variable Selection
+
+
+### 3.1.1 Function for True Discovery Rate
+
+```{r}
+discovery_rate <- function(parameters,
+                                estimates,
+                                m,
+                                edgelists,
+                                estimation = c("mle_05", "mle_01", "shrink_hs", "shrink_ridge"),
+                                coefficients) {
+  # Ensure valid input for estimation
+  estimation <- match.arg(estimation)
+  
+  # Extract coefficients and settings
+  all_coefficients <- names(parameters)
+  num_iterations <- length(edgelists)
+  num_coefficients <- length(all_coefficients)
+  
+  # Initialize plot data
+  plot_data <- data.frame(
+    m = rep(m, each = num_coefficients * num_iterations),
+    Iteration = rep(1:num_iterations, each = num_coefficients),
+    Coefficient = rep(all_coefficients, times = length(m)),
+    selected = "not selected"
+  )
+  
+  # Populate selected coefficients
+  for (i in seq_along(m)) {
+    m_key <- paste0("m=", m[i])
+    if (m_key %in% names(estimates)) {
+      for (j in 1:num_iterations) {
+        selected_key <- paste0("selected_vars_", estimation)
+        selected_vars <- estimates[[m_key]][[selected_key]][[j]]
+        
+        # Check for non-NULL and non-empty entries
+        if (!is.null(selected_vars) && length(selected_vars) > 0) {
+          plot_data$selected[plot_data$m == m[i] &
+                               plot_data$Iteration == j &
+                               plot_data$Coefficient %in% selected_vars] <- "selected"
+        }
+      }
+    }
+  }
+  
+  # Create the plot
+  discovery_rate <- plot_data %>%
+    mutate(
+      Coefficient = factor(Coefficient, levels = c(
+        names(parameters[parameters != 0]), names(parameters[parameters == 0])
+      )),
+      selected = factor(selected, levels = c("not selected", "selected"))) %>%
+    filter(Coefficient %in% coefficients) %>%
+    group_by(m) %>%
+    summarise(
+      selected = sum(selected == "selected"),
+      total = n(),
+      discovery_rate = selected / total
+    ) %>%
+    ungroup()
+  
+  return(discovery_rate)
+}  
+```
+
+### 3.1.2 Function to Plot True Discovery Rate
+
+```{r}
+plot_true_discovery_rates <- function(data, plot_title) {
+  # Melt the data frame
+  melted_data <- reshape2::melt(
+    data,
+    id.vars = "m",
+    variable.name = "Method",
+    value.name = "TrueDiscoveryRate"
+  )
+  
+  # Create the plot using ggplot2
+  ggplot2::ggplot(melted_data, ggplot2::aes(x = m, y = TrueDiscoveryRate, group = Method, shape = Method, linetype = Method)) +
+    ggplot2::geom_line() +
+    ggplot2::geom_point(size = 1.5) +
+    ggplot2::ylim(0,1) +
+    ggplot2::scale_x_continuous(breaks = c(100, 200, 400, 800, 1600, 3200)) +
+    ggplot2::labs(x = "Events (M)", y = "True Discovery Rate", title = plot_title) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5),
+                   axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)) +
+    ggplot2::scale_shape_manual(
+      values = c(16, 17, 15, 18),
+      labels = c("MLE (p<0.05)", "MLE (p<0.01)", "Horseshoe (95% HDI)", "Ridge (95% HDI)")
+    ) +
+    ggplot2::scale_linetype_manual(
+      values = c("solid", "dotted", "dashed", "dotdash"),
+      labels = c("MLE (p<0.05)", "MLE (p<0.01)", "Horseshoe (95% HDI)", "Ridge (95% HDI)")
+    )
+}
+
+```
+
+
+### 3.1.3 Function to Plot False Discovery Rate
+
+```{r}
+plot_false_discovery_rates <- function(data, plot_title) {
+  # Melt the data frame
+  melted_data <- reshape2::melt(
+    data,
+    id.vars = "m",
+    variable.name = "Method",
+    value.name = "FalseDiscoveryRate"
+  )
+  
+  # Create the plot using ggplot2
+  ggplot2::ggplot(melted_data, ggplot2::aes(x = m, y = FalseDiscoveryRate, group = Method, shape = Method, linetype = Method)) +
+    ggplot2::geom_line() +
+    ggplot2::geom_point(size = 1.5) +
+    ggplot2::ylim(0,0.35) +
+    ggplot2::scale_x_continuous(breaks = c(100, 200, 400, 800, 1600, 3200)) +
+    ggplot2::labs(x = "Events (M)", y = "False Discovery Rate", title = plot_title) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5),
+                   axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)) +
+    ggplot2::scale_shape_manual(
+      values = c(16, 17, 15, 18),
+      labels = c("MLE (p<0.05)", "MLE (p<0.01)", "Horseshoe (95% HDI)", "Ridge (95% HDI)")
+    ) +
+    ggplot2::scale_linetype_manual(
+      values = c("solid", "dotted", "dashed", "dotdash"),
+      labels = c("MLE (p<0.05)", "MLE (p<0.01)", "Horseshoe (95% HDI)", "Ridge (95% HDI)")
+    )
+}
+```
+
+### 3.1.4 Function to Plot Selected Variables
+
+```{r}
+significance_plot <- function(parameters,
+                              estimates,
+                              m,
+                              edgelists,
+                              estimation = c("mle_05", "mle_01", "shrink_hs", "shrink_ridge")) {
+  # Ensure valid input for estimation
+  estimation <- match.arg(estimation)
+  
+  # Extract coefficients and settings
+  all_coefficients <- names(parameters)
+  num_iterations <- length(edgelists)
+  num_coefficients <- length(all_coefficients)
+  
+  # Initialize plot data
+  plot_data <- data.frame(
+    m = rep(m, each = num_coefficients * num_iterations),
+    Iteration = rep(1:num_iterations, each = num_coefficients),
+    Coefficient = rep(all_coefficients, times = length(m)),
+    selected = "not selected"
+  )
+  
+  # Populate selected coefficients
+  for (i in seq_along(m)) {
+    m_key <- paste0("m=", m[i])
+    if (m_key %in% names(estimates)) {
+      for (j in 1:num_iterations) {
+        selected_key <- paste0("selected_vars_", estimation)
+        selected_vars <- estimates[[m_key]][[selected_key]][[j]]
+        
+        # Check for non-NULL and non-empty entries
+        if (!is.null(selected_vars) && length(selected_vars) > 0) {
+          plot_data$selected[plot_data$m == m[i] &
+                               plot_data$Iteration == j &
+                               plot_data$Coefficient %in% selected_vars] <- "selected"
+        }
+      }
+    }
+  }
+  
+  # Create the plot
+  plot_data_processed <- plot_data %>%
+    mutate(
+      Coefficient = factor(Coefficient, levels = c(
+        names(parameters[parameters != 0]), names(parameters[parameters == 0])
+      )),
+      selected = factor(selected, levels = c("not selected", "selected")),
+      fill_label = case_when(
+        selected == "not selected" ~ "Not Selected",
+        selected == "selected" &
+          Coefficient %in% names(parameters[parameters != 0]) ~ "Correctly Selected",
+        selected == "selected" &
+          Coefficient %in% names(parameters[parameters == 0]) ~ "Falsely Selected"
+      ),
+      fill_color = case_when(
+        selected == "not selected" ~ "lightgray",
+        selected == "selected" &
+          Coefficient %in% names(parameters[parameters != 0]) ~ "darkgreen",
+        selected == "selected" &
+          Coefficient %in% names(parameters[parameters == 0]) ~ "darkred"
+      ),
+      x_order = factor(paste0("m=", m, ", Iter=", Iteration), levels = unlist(lapply(unique(m), function(m)
+        paste0("m=", m, ", Iter=", 1:num_iterations))))
+    )
+  
+  plot <- ggplot(plot_data_processed,
+         aes(x = x_order, y = Coefficient, fill = fill_label)) +
+    geom_tile(color = "white") +
+    geom_hline(
+      yintercept = length(names(parameters[parameters != 0])) + 0.5,
+      linetype = "dashed",
+      color = "black"
+    ) +
+    geom_vline(
+      xintercept = cumsum(rep(num_iterations, length(m))) + 0.5,
+      linetype = "dashed",
+      color = "black"
+    ) +
+    scale_fill_manual(
+      values = c(
+        "Not Selected" = "lightgray",
+        "Correctly Selected" = "darkgreen",
+        "Falsely Selected" = "darkred"
+      ),
+      name = "Effect Type"
+    ) +
+    labs(
+      title = paste(
+        "Significance of Coefficients Across Models and Iterations (",
+        estimation,
+        ")",
+        sep = ""
+      ),
+      x = "Model and Iteration",
+      y = "Coefficient"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5
+    ))
+  
+  
+  return(list(plot_data = plot_data_processed, plot = plot))
+}
+```
+
+## 3.2 Effect Sizes
+
+### 3.2.1 Function for Bias and Variance of the Effect Sizes
+
+```{r}
+bias_estimates <- function(parameters,
+                           estimates,
+                           m = c(100, 200, 400, 800, 1600, 3200),
+                           no_edgelists,
+                           method = c("shrink_coefs_hs", "shrink_coefs_ridge", "mle_coefs")) {
+  # Extract coefficients and settings
+  all_coefficients <- names(parameters)
+  num_iterations <- length(edgelists)
+  num_coefficients <- length(all_coefficients)
+  
+  # Extract true coefficients
+  true <- unlist(parameters)
+  names(true) <- names(parameters)
+  
+  # Initialize plot data
+  data <- data.frame(
+    m = rep(m, each = num_iterations),
+    Iteration = rep(1:num_iterations, times = length(m)),
+    bias = NA_real_
+  )
+  
+  for (i in seq_along(m)) {
+    m_key <- paste0("m=", m[i])
+    for (j in 1:num_iterations) {
+      selected_key <- method
+      if (selected_key == "mle_coefs") {
+        estimate <- estimates[[m_key]][[selected_key]][[j]][, 1]
+      } else {
+        estimate <- estimates[[m_key]][[selected_key]][[j]][, 2]
+      }
+      bias <- estimate - true
+      data$bias[(i - 1) * 10 + j] <- mean(bias)
+    }
+  }
+  
+  return(data)
+}
+
+bias_hs <- bias_estimates(parameters, estimates, m, 10, "shrink_coefs_hs")
+bias_ridge <- bias_estimates(parameters, estimates, m, 10, "shrink_coefs_ridge")
+bias_mle <- bias_estimates(parameters, estimates, m, 10, "mle_coefs")
+```
+
+
+## 3.3 Predictive Performance
+
+### Function for Predictive Performance
+
+```{r}
+predictive_performance <- function(edgelist, covar, coefficients, effects, quantile = 0.95, warnings = TRUE) {
+  top5 <- rep(FALSE, nrow(edgelist))
+  
+  if (!warnings) {
+    suppressWarnings({
+      reh <- remify(edgelist, directed = TRUE, model = "tie")
+      statistics <- remstats(reh = reh, tie_effects = effects, attr_actors = covar)
+      
+      for (i in 1:nrow(edgelist)) {
+        
+        lambda <- exp(as.numeric(statistics[i,,] %*% coefficients))
+        
+        # Extract top 5% of lambdas row indices
+        top_5_lambda <- which(lambda > quantile(lambda, quantile))
+        # extract specific dyad that belongs to this row
+        top_5_dyads <- getDyad(x = reh, dyadID = top_5_lambda)[,2:3]
+        
+        actual <- edgelists[[1]][i,c(2,3)]
+        
+        # Check if actual is part of top_5_dyads
+        top5[i] <- nrow(merge(actual, top_5_dyads)) > 0
+      }
+    })
+  } else {
+    reh <- remify(edgelist, directed = TRUE, model = "tie")
+    statistics <- remstats(reh = reh, tie_effects = effects, attr_actors = covar)
+    
+    for (i in 1:nrow(edgelist)) {
+      
+      lambda <- exp(as.numeric(statistics[i,,] %*% coefficients))
+      
+      # Extract top 5% of lambdas row indices
+      top_5_lambda <- which(lambda > quantile(lambda, quantile))
+      # extract specific dyad that belongs to this row
+      top_5_dyads <- getDyad(x = reh, dyadID = top_5_lambda)[,2:3]
+      
+      actual <- edgelists[[1]][i,c(2,3)]
+      
+      # Check if actual is part of top_5_dyads
+      top5[i] <- nrow(merge(actual, top_5_dyads)) > 0
+    }
+  }
+  
+  return(top5 = sum(top5)/nrow(edgelist))
+}
+```
+
+# 3. Save the Functions
+
+```{r}
+save.image("functions.RData")
+```
+

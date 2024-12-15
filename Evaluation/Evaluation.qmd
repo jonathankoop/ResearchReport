@@ -1,0 +1,194 @@
+---
+title: "Evaluation"
+format: html
+---
+
+# 1. Load Libraries and Functions
+```{r}
+library(pacman)
+p_load(remify, remstats, remstimate, shrinkem, tidyverse, patchwork)
+load("../Functions/functions.RData")
+```
+
+# 2. Load in Generated Data
+
+```{r}
+# Load all files in "../GeneratedData/"
+files <- list.files(path = "../GeneratedData/", full.names = TRUE)
+
+# Loop through all files
+for (file in files) {
+  load(file)
+}
+```
+
+
+# 3. Estimate the Models
+
+## Apply `estimate_edgelists` to the Data
+
+```{r}
+# | eval = FALSE
+
+# Set number of events
+m <- c(100, 200, 400, 800, 1600, 3200)
+
+# Set number of cores
+ncores <- 7
+
+t1 <- Sys.time()
+estimates <- estimate_edgelists(edgelists, parameters, covar, num_cores = ncores, m = m)
+t2 <- Sys.time()
+(diff.time <- t2 - t1)
+
+save(estimates, file = "../../GeneratedData/estimates.RData")
+```
+
+# 4. Evaluate the Models
+
+## 4.1. Variable Selection
+
+### 4.1.1 True Discovery Rates
+
+#### Endogenous Effects
+
+```{r}
+methods <- c("mle_05", "mle_01", "shrink_hs", "shrink_ridge")
+endog_true_discovery_rates <- data.frame(m = c(100, 200, 400, 800, 1600, 3200),
+                                   endog_mle05 = numeric(length(m)),
+                                   endog_mle01 = numeric(length(m)),
+                                   endog_hs = numeric(length(m)),
+                                   endog_ridge = numeric(length(m)))
+
+for (i in seq_along(methods)) {
+  endog_true_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters[2:27] != 0]))$discovery_rate
+}
+```
+
+
+#### Weak Exogenous Effects
+
+```{r}
+weak_true_discovery_rates <- data.frame(m = c(100, 200, 400, 800, 1600, 3200),
+                                   weak_mle05 = numeric(length(m)),
+                                   weak_mle01 = numeric(length(m)),
+                                   weak_hs = numeric(length(m)),
+                                   weak_ridge = numeric(length(m)))
+for (i in seq_along(methods)) {
+  weak_true_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters ==  log(1.22)]))$discovery_rate
+}
+```
+
+#### Medium Exogenous Effects
+
+```{r}
+medium_true_discovery_rates <- data.frame(m = c(100, 200, 400, 800, 1600, 3200),
+                                   medium_mle05 = numeric(length(m)),
+                                   medium_mle01 = numeric(length(m)),
+                                   medium_hs = numeric(length(m)),
+                                   medium_ridge = numeric(length(m)))
+
+for (i in seq_along(methods)) {
+  medium_true_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters ==  log(1.86)]))$discovery_rate
+}
+
+```
+
+#### Strong Exogenous Effects
+
+```{r}
+strong_true_discovery_rates <- data.frame(m = c(100, 200, 400, 800, 1600, 3200),
+                                   strong_mle05 = numeric(length(m)),
+                                   strong_mle01 = numeric(length(m)),
+                                   strong_hs = numeric(length(m)),
+                                   strong_ridge = numeric(length(m)))
+
+for (i in seq_along(methods)) {
+  strong_true_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters ==  log(3.00)]))$discovery_rate
+}
+
+```
+
+#### Plots
+
+```{r}
+endog_plot_true <- plot_true_discovery_rates(endog_true_discovery_rates, "Endogenous Effects")
+weak_plot_true <- plot_true_discovery_rates(weak_true_discovery_rates, "Weak Exogenous Effects")
+medium_plot_true <- plot_true_discovery_rates(medium_true_discovery_rates, "Medium Exogenous Effects")
+strong_plot_true <- plot_true_discovery_rates(strong_true_discovery_rates, "Strong Exogenous Effects")
+
+# Combine the plots and collect axis titles and legends
+combined_plot_true <- (endog_plot_true + weak_plot_true + medium_plot_true + strong_plot_true) +
+  plot_layout(guides = "collect", axis_titles = "collect") &  # Combine legends
+  theme(legend.position = "bottom")  # Position the legend at the bottom
+```
+
+#### Save the Plot
+
+```{r}
+ggsave("../Plots/true_discovery_rates.png", combined_plot_true, width = 12, height = 8)
+```
+
+
+
+### 4.1.2 False Discovery Rates
+
+#### Endogenous Effects
+
+```{r}
+endog_false_discovery_rates <- data.frame(
+  m = c(100, 200, 400, 800, 1600, 3200),
+  endog_mle05 = numeric(length(m)),
+  endog_mle01 = numeric(length(m)),
+  endog_hs = numeric(length(m)),
+  endog_ridge = numeric(length(m))
+)
+
+for (i in seq_along(methods)) {
+  endog_false_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters[2:27] ==  0]))$discovery_rate
+}
+```
+
+#### Exogenous Effects
+
+```{r}
+exog_false_discovery_rates <- data.frame(
+  m = c(100, 200, 400, 800, 1600, 3200),
+  exog_mle05 = numeric(length(m)),
+  exog_mle01 = numeric(length(m)),
+  exog_hs = numeric(length(m)),
+  exog_ridge = numeric(length(m))
+)
+
+for (i in seq_along(methods)) {
+  exog_false_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters[28:51] ==  0]))$discovery_rate
+}
+```
+
+#### Plots
+
+```{r}
+endog_plot_false <- plot_false_discovery_rates(endog_false_discovery_rates, "Endogenous Effects")
+exog_plot_false <- plot_false_discovery_rates(exog_false_discovery_rates, "Exogenous Effects")
+
+
+# Combine the plots and collect axis titles and legends
+combined_plot_false <- (endog_plot_false + exog_plot_false) +
+  plot_layout(guides = "collect", axis_titles = "collect") &  # Combine legends
+  theme(legend.position = "bottom")  # Position the legend at the bottom
+```
+
+#### Save the Plot
+
+```{r}
+ggsave("../Plots/false_discovery_rates.png", combined_plot_false, width = 12, height = 5)
+```
+
+## 4.2 Predictive Performance
+
+### 4.2.1 In-Sample Predictions
+
+```{r}
+
+```
+
