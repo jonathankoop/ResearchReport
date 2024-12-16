@@ -41,7 +41,7 @@ estimates <- estimate_edgelists(edgelists, parameters, covar, num_cores = ncores
 t2 <- Sys.time()
 (diff.time <- t2 - t1)
 
-save(estimates, file = "../../GeneratedData/estimates.RData")
+save(estimates, file = "../GeneratedData/estimates.RData")
 ```
 
 # 4. Evaluate the Models
@@ -184,11 +184,237 @@ combined_plot_false <- (endog_plot_false + exog_plot_false) +
 ggsave("../Plots/false_discovery_rates.png", combined_plot_false, width = 12, height = 5)
 ```
 
-## 4.2 Predictive Performance
-
-### 4.2.1 In-Sample Predictions
+## 4.2 Bias and Variance
 
 ```{r}
+bias_mle <- bias_estimates(parameters = parameters,
+               estimates = estimates,
+               method = "mle_coefs") %>%
+  select(bias) %>%
+  summarise(mean = mean(bias, na.rm = TRUE),
+            variance = var(bias, na.rm = TRUE))
 
+bias_hs <- bias_estimates(parameters = parameters,
+               estimates = estimates,
+               method = "shrink_coefs_hs") %>%
+  select(bias) %>%
+  summarise(mean = mean(bias, na.rm = TRUE),
+            variance = var(bias, na.rm = TRUE))
+
+bias_ridge <- bias_estimates(parameters = parameters,
+               estimates = estimates,
+               method = "shrink_coefs_ridge") %>%
+  select(bias) %>%
+  summarise(mean = mean(bias, na.rm = TRUE),
+            variance = var(bias, na.rm = TRUE))
 ```
 
+
+## 4.3 Predictive Performance
+
+### 4.3.1 In-Sample Predictions
+
+```{r}
+m = c(100, 200, 400, 800, 1600, 3200)
+
+# Initialize an empty data frame to store results
+results <- data.frame(
+  m = integer(),
+  iteration = integer(),
+  pp_mle = numeric(),
+  pp_ridge = numeric(),
+  pp_hs = numeric()
+)
+
+# Iterate through the values of m and the 20 iterations
+for (i in seq_along(m)) {
+  m_key <- paste0("m=", m[i])
+  for (j in 1:30) {
+    # Initialize variables for the current iteration
+    mle_value <- NA
+    ridge_value <- NA
+    hs_value <- NA
+
+    # Attempt to compute predictive performance, filling with NA if an error occurs
+    tryCatch({
+      mle_value <- predictive_performance(
+        edgelists[[j]][1:m[i], ], covar,
+        estimates[[m_key]][["mle_coefs"]][[j]][, 1],
+        generate_formula(parameters), warnings = FALSE
+      )
+    }, error = function(e) {
+      mle_value <- NA
+    })
+
+    tryCatch({
+      ridge_value <- predictive_performance(
+        edgelists[[j]][1:m[i], ], covar,
+        estimates[[m_key]][["shrink_coefs_ridge"]][[j]][, 4],
+        generate_formula(parameters), warnings = FALSE
+      )
+    }, error = function(e) {
+      ridge_value <- NA
+    })
+
+    tryCatch({
+      hs_value <- predictive_performance(
+        edgelists[[j]][1:m[i], ], covar,
+        estimates[[m_key]][["shrink_coefs_hs"]][[j]][, 4],
+        generate_formula(parameters), warnings = FALSE
+      )
+    }, error = function(e) {
+      hs_value <- NA
+    })
+
+    # Append the results to the data frame
+    results <- results %>% add_row(
+      m = m[i],
+      iteration = j,
+      pp_mle = mle_value,
+      pp_ridge = ridge_value,
+      pp_hs = hs_value
+    )
+  }
+}
+
+library(dplyr)
+library(kableExtra)
+
+latex_table <- results %>%
+  group_by(m) %>%
+  summarise(
+    pp_mle = round(mean(pp_mle, na.rm = TRUE), 3),
+    pp_ridge = round(mean(pp_ridge, na.rm = TRUE), 3),
+    pp_hs = round(mean(pp_hs, na.rm = TRUE), 3)
+  ) %>%
+  rowwise() %>%
+  mutate(
+    max_value = max(c(pp_mle, pp_ridge, pp_hs), na.rm = TRUE),
+    pp_mle = ifelse(pp_mle == max_value, 
+                    cell_spec(pp_mle, "latex", bold = TRUE), 
+                    as.character(pp_mle)),
+    pp_ridge = ifelse(pp_ridge == max_value, 
+                      cell_spec(pp_ridge, "latex", bold = TRUE), 
+                      as.character(pp_ridge)),
+    pp_hs = ifelse(pp_hs == max_value, 
+                   cell_spec(pp_hs, "latex", bold = TRUE), 
+                   as.character(pp_hs))
+  ) %>%
+  select(-max_value) %>%  # Drop the temporary max_value column
+  ungroup() %>%
+  kableExtra::kable(
+    format = "latex", 
+    escape = FALSE,  # Render LaTeX formatting in cells
+    col.names = c("Events (M)", "MLE", "Ridge", "HS"),
+    caption = "Predictive Performance for Different Models and Events (M)", 
+    booktabs = TRUE
+  ) %>%
+  kableExtra::kable_styling(full_width = FALSE)
+
+# Print LaTeX code to the console
+cat(latex_table)
+```
+
+### 4.2.2 Out-of-Sample Predictive Performance
+
+
+```{r}
+m = c(100, 200, 400, 800, 1600, 3200)
+
+# Initialize an empty data frame to store results
+results_oos <- data.frame(
+  m = integer(),
+  iteration = integer(),
+  pp_mle = numeric(),
+  pp_ridge = numeric(),
+  pp_hs = numeric()
+)
+
+# Iterate through the values of m and the 20 iterations
+for (i in seq_along(m)) {
+  m_key <- paste0("m=", m[i])
+  for (j in 1:20) {
+    # Initialize variables for the current iteration
+    mle_value <- NA
+    ridge_value <- NA
+    hs_value <- NA
+
+    # Attempt to compute predictive performance, filling with NA if an error occurs
+    tryCatch({
+      mle_value <- predictive_performance(
+        edgelists[[j]][(m[i]+1):(m[i]+500), ], covar,
+        estimates[[m_key]][["mle_coefs"]][[j]][, 1],
+        generate_formula(parameters), warnings = FALSE
+      )
+    }, error = function(e) {
+      mle_value <- NA
+    })
+
+    tryCatch({
+      ridge_value <- predictive_performance(
+        edgelists[[j]][(m[i]+1):(m[i]+500), ], covar,
+        estimates[[m_key]][["shrink_coefs_ridge"]][[j]][, 4],
+        generate_formula(parameters), warnings = FALSE
+      )
+    }, error = function(e) {
+      ridge_value <- NA
+    })
+
+    tryCatch({
+      hs_value <- predictive_performance(
+        edgelists[[j]][(m[i]+1):(m[i]+500), ], covar,
+        estimates[[m_key]][["shrink_coefs_hs"]][[j]][, 4],
+        generate_formula(parameters), warnings = FALSE
+      )
+    }, error = function(e) {
+      hs_value <- NA
+    })
+
+    # Append the results to the data frame
+    results_oos <- results_oos %>% add_row(
+      m = m[i],
+      iteration = j,
+      pp_mle = mle_value,
+      pp_ridge = ridge_value,
+      pp_hs = hs_value
+    )
+  }
+}
+
+library(dplyr)
+library(kableExtra)
+
+latex_table <- results_oos %>%
+  group_by(m) %>%
+  summarise(
+    pp_mle = round(mean(pp_mle, na.rm = TRUE), 3),
+    pp_ridge = round(mean(pp_ridge, na.rm = TRUE), 3),
+    pp_hs = round(mean(pp_hs, na.rm = TRUE), 3)
+  ) %>%
+  rowwise() %>%
+  mutate(
+    max_value = max(c(pp_mle, pp_ridge, pp_hs), na.rm = TRUE),
+    pp_mle = ifelse(pp_mle == max_value, 
+                    cell_spec(pp_mle, "latex", bold = TRUE), 
+                    as.character(pp_mle)),
+    pp_ridge = ifelse(pp_ridge == max_value, 
+                      cell_spec(pp_ridge, "latex", bold = TRUE), 
+                      as.character(pp_ridge)),
+    pp_hs = ifelse(pp_hs == max_value, 
+                   cell_spec(pp_hs, "latex", bold = TRUE), 
+                   as.character(pp_hs))
+  ) %>%
+  select(-max_value) %>%  # Drop the temporary max_value column
+  ungroup() %>%
+  kableExtra::kable(
+    format = "latex", 
+    escape = FALSE,  # Render LaTeX formatting in cells
+    col.names = c("Events (M)", "MLE", "Ridge", "HS"),
+    caption = "Predictive Performance for Different Models and Events (M)", 
+    booktabs = TRUE
+  ) %>%
+  kableExtra::kable_styling(full_width = FALSE)
+
+# Print LaTeX code to the console
+cat(latex_table)
+```

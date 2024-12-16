@@ -650,7 +650,6 @@ significance_plot <- function(parameters,
 bias_estimates <- function(parameters,
                            estimates,
                            m = c(100, 200, 400, 800, 1600, 3200),
-                           no_edgelists,
                            method = c("shrink_coefs_hs", "shrink_coefs_ridge", "mle_coefs")) {
   # Extract coefficients and settings
   all_coefficients <- names(parameters)
@@ -678,16 +677,12 @@ bias_estimates <- function(parameters,
         estimate <- estimates[[m_key]][[selected_key]][[j]][, 2]
       }
       bias <- estimate - true
-      data$bias[(i - 1) * 10 + j] <- mean(bias)
+      data$bias[(i - 1) * num_iterations + j] <- mean(bias)
     }
   }
   
   return(data)
 }
-
-bias_hs <- bias_estimates(parameters, estimates, m, 10, "shrink_coefs_hs")
-bias_ridge <- bias_estimates(parameters, estimates, m, 10, "shrink_coefs_ridge")
-bias_mle <- bias_estimates(parameters, estimates, m, 10, "mle_coefs")
 ```
 
 
@@ -701,7 +696,7 @@ predictive_performance <- function(edgelist, covar, coefficients, effects, quant
   
   if (!warnings) {
     suppressWarnings({
-      reh <- remify(edgelist, directed = TRUE, model = "tie")
+      reh <- remify(edgelist, directed = TRUE, model = "tie", riskset = "full")
       statistics <- remstats(reh = reh, tie_effects = effects, attr_actors = covar)
       
       for (i in 1:nrow(edgelist)) {
@@ -742,6 +737,81 @@ predictive_performance <- function(edgelist, covar, coefficients, effects, quant
   return(top5 = sum(top5)/nrow(edgelist))
 }
 ```
+
+### From Karimova et al. (2023)
+
+```{r}
+get.insample.pred <- function(beta, Events, stat, M, warnings = FALSE){
+  
+  if (!warnings) {
+    suppressWarnings({
+  # Get temporary data.frame with event ranks and indicators for ranks in the 
+  # set
+  temp <- matrix(unlist(lapply(1:M, function(i){
+    Z <- stat[i,,]%*%beta 
+    Z_ordered <- order(Z, decreasing = T)
+    return(cbind(which(Z_ordered == Events[i, 3]), which.max(Z) == Events[i, 3],
+                 sum(Z_ordered[1:floor(0.05*length(Z))] == Events[i, 3]), 
+                 sum(Z_ordered[1:floor(0.1*length(Z))] == Events[i, 3]), 
+                 sum(Z_ordered[1:floor(0.2*length(Z))] == Events[i, 3])))
+  })), nrow = M, byrow = T)
+  
+  # Summarize the temporary data.frame
+  res = data.frame("strict" = sum(temp[,2])/M,
+                   "five" = sum(temp[,3])/M, 
+                   "ten" = sum(temp[,4])/M,
+                   "twenty" = sum(temp[,5])/M)
+    })
+  } else {
+    temp <- matrix(unlist(lapply(1:M, function(i){
+      X_i <- stat[i,,]
+      Z <- X_i%*%beta 
+      Z_ordered <- order(Z, decreasing = T)
+      return(cbind(which(Z_ordered == Events[i, 3]), 
+                   which.max(Z) == Events[i, 3],
+                   sum(Z_ordered[1:floor(0.05*length(Z))] == Events[i, 3]), 
+                   sum(Z_ordered[1:floor(0.1*length(Z))] == Events[i, 3]), 
+                   sum(Z_ordered[1:floor(0.2*length(Z))] == Events[i, 3])))
+    })), nrow = M, byrow = T)
+    
+    res = data.frame("strict" = sum(temp[,2])/M,
+                     "five" = sum(temp[,3])/M, 
+                     "ten" = sum(temp[,4])/M,
+                     "twenty" = sum(temp[,5])/M)
+  }
+  # Output
+  list(rank_observed_mean = mean(temp[,1]),
+       rank_observed_vector = temp[,1],
+       scores = res) 
+}
+```
+
+```{r}
+get.outofsample.pred <- function(beta, Events, stat, M, n){
+  
+  temp <- matrix(unlist(lapply(1:n, function(i){
+    X_i <- stat[(M+i),,]
+    Z <- X_i%*%beta 
+    Z_ordered <- order(Z, decreasing = T)
+    return(cbind(which(Z_ordered == Events[M+i, 3]), 
+                 which.max(Z) == Events[M+i, 3],
+                 sum(Z_ordered[1:floor(0.05*length(Z))] == Events[M+i, 3]), 
+                 sum(Z_ordered[1:floor(0.1*length(Z))] == Events[M+i, 3]), 
+                 sum(Z_ordered[1:floor(0.2*length(Z))] == Events[M+i, 3])))
+  })), nrow = n, byrow = T)
+  
+  
+  res = data.frame("strict" = round(sum(temp[,2]), 4),
+                   "five" = round(sum(temp[,3]), 4), 
+                   "ten" = round(sum(temp[,4]), 4),
+                   "twenty" = round(sum(temp[,5]), 4))
+  
+  return(list(rank_observed_mean = mean(temp[,1]),
+              rank_observed_vector = temp[,1],
+              scores = res/n))  
+}
+```
+
 
 # 3. Save the Functions
 
