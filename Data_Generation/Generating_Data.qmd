@@ -151,7 +151,7 @@ num_cores <- detectCores() - 1
 
 t1 <- Sys.time()
 # Parallel loop
-edgelists <- mclapply(1:30, function(i) {
+edgelists <- mclapply(1:50, function(i) {
   set.seed(i)
   # Generate the edgelist
   edgelist <- generate_rem(parameters, covar, M, directed = TRUE)
@@ -164,4 +164,3 @@ save(edgelists, file = "../GeneratedData/edgelists.RData")
 t2 - t1
 
 ```
-

@@ -6,7 +6,8 @@ format: html
 # 1. Load Libraries and Functions
 ```{r}
 library(pacman)
-p_load(remify, remstats, remstimate, shrinkem, tidyverse, patchwork)
+p_load(remify, remstats, remstimate, shrinkem, tidyverse, patchwork, 
+       kableExtra, foreach, doParallel, viridis, reshape2)
 load("../Functions/functions.RData")
 ```
 
@@ -28,7 +29,7 @@ for (file in files) {
 ## Apply `estimate_edgelists` to the Data
 
 ```{r}
-# | eval = FALSE
+#| eval: false
 
 # Set number of events
 m <- c(100, 200, 400, 800, 1600, 3200)
@@ -37,11 +38,11 @@ m <- c(100, 200, 400, 800, 1600, 3200)
 ncores <- 7
 
 t1 <- Sys.time()
-estimates <- estimate_edgelists(edgelists, parameters, covar, num_cores = ncores, m = m)
+estimates <- estimate_edgelists(edgelists[31:50], parameters, covar, num_cores = ncores, m = m)
 t2 <- Sys.time()
 (diff.time <- t2 - t1)
 
-save(estimates, file = "../GeneratedData/estimates.RData")
+save(estimates, file = "../GeneratedData/estimates_3150.RData")
 ```
 
 # 4. Evaluate the Models
@@ -53,16 +54,32 @@ save(estimates, file = "../GeneratedData/estimates.RData")
 #### Endogenous Effects
 
 ```{r}
-methods <- c("mle_05", "mle_01", "shrink_hs", "shrink_ridge")
+m <- c(100, 200, 400, 800, 1600, 3200)
+
+methods <- c("mle_05", "shrink_hs", "shrink_ridge")
 endog_true_discovery_rates <- data.frame(m = c(100, 200, 400, 800, 1600, 3200),
                                    endog_mle05 = numeric(length(m)),
-                                   endog_mle01 = numeric(length(m)),
                                    endog_hs = numeric(length(m)),
                                    endog_ridge = numeric(length(m)))
 
 for (i in seq_along(methods)) {
-  endog_true_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters[2:27] != 0]))$discovery_rate
+  endog_true_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters != 0][2:4]))$discovery_rate
 }
+```
+
+Distribution of Discovery Rates
+
+```{r}
+discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters != 0][2:4]))$data %>%
+  group_by(m, Iteration) %>%
+  summarise(
+    discovery_rate = mean(selected, na.rm = TRUE)
+  ) %>%
+  # plot histogram by m
+  ggplot(aes(x = discovery_rate)) +
+  geom_histogram(binwidth = 0.05) +
+  # facet wrap with same scales
+  facet_wrap(~m, scales = "free_y")
 ```
 
 
@@ -71,7 +88,6 @@ for (i in seq_along(methods)) {
 ```{r}
 weak_true_discovery_rates <- data.frame(m = c(100, 200, 400, 800, 1600, 3200),
                                    weak_mle05 = numeric(length(m)),
-                                   weak_mle01 = numeric(length(m)),
                                    weak_hs = numeric(length(m)),
                                    weak_ridge = numeric(length(m)))
 for (i in seq_along(methods)) {
@@ -79,12 +95,26 @@ for (i in seq_along(methods)) {
 }
 ```
 
+Distribution of Discovery Rates
+
+```{r}
+discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters ==  log(1.22)]))$data %>%
+  group_by(m, Iteration) %>%
+  summarise(
+    discovery_rate = mean(selected, na.rm = TRUE)
+  ) %>%
+  # plot histogram by m
+  ggplot(aes(x = discovery_rate)) +
+  geom_histogram(binwidth = 0.05) +
+  # facet wrap with same scales
+  facet_wrap(~m, scales = "free_y")
+```
+
 #### Medium Exogenous Effects
 
 ```{r}
 medium_true_discovery_rates <- data.frame(m = c(100, 200, 400, 800, 1600, 3200),
                                    medium_mle05 = numeric(length(m)),
-                                   medium_mle01 = numeric(length(m)),
                                    medium_hs = numeric(length(m)),
                                    medium_ridge = numeric(length(m)))
 
@@ -94,12 +124,27 @@ for (i in seq_along(methods)) {
 
 ```
 
+Distribution of Discovery Rates
+
+```{r}
+discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters ==  log(1.86)]))$data %>%
+  group_by(m, Iteration) %>%
+  summarise(
+    discovery_rate = mean(selected, na.rm = TRUE)
+  ) %>%
+  # plot histogram by m
+  ggplot(aes(x = discovery_rate)) +
+  geom_histogram(binwidth = 0.05) +
+  # facet wrap with same scales
+  facet_wrap(~m, scales = "free_y")
+```
+
+
 #### Strong Exogenous Effects
 
 ```{r}
 strong_true_discovery_rates <- data.frame(m = c(100, 200, 400, 800, 1600, 3200),
                                    strong_mle05 = numeric(length(m)),
-                                   strong_mle01 = numeric(length(m)),
                                    strong_hs = numeric(length(m)),
                                    strong_ridge = numeric(length(m)))
 
@@ -109,18 +154,37 @@ for (i in seq_along(methods)) {
 
 ```
 
+Distribution of Discovery Rates
+
+```{r}
+discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters ==  log(3.00)]))$data %>%
+  group_by(m, Iteration) %>%
+  summarise(
+    discovery_rate = mean(selected, na.rm = TRUE)
+  ) %>%
+  # plot histogram by m
+  ggplot(aes(x = discovery_rate)) +
+  geom_histogram(binwidth = 0.05) +
+  # facet wrap with same scales
+  facet_wrap(~m, scales = "free_y")
+```
+
 #### Plots
 
 ```{r}
-endog_plot_true <- plot_true_discovery_rates(endog_true_discovery_rates, "Endogenous Effects")
-weak_plot_true <- plot_true_discovery_rates(weak_true_discovery_rates, "Weak Exogenous Effects")
-medium_plot_true <- plot_true_discovery_rates(medium_true_discovery_rates, "Medium Exogenous Effects")
-strong_plot_true <- plot_true_discovery_rates(strong_true_discovery_rates, "Strong Exogenous Effects")
+endog_plot_true <- plot_true_discovery_rates(endog_true_discovery_rates)
+weak_plot_true <- plot_true_discovery_rates(weak_true_discovery_rates)
+medium_plot_true <- plot_true_discovery_rates(medium_true_discovery_rates)
+strong_plot_true <- plot_true_discovery_rates(strong_true_discovery_rates)
 
 # Combine the plots and collect axis titles and legends
 combined_plot_true <- (endog_plot_true + weak_plot_true + medium_plot_true + strong_plot_true) +
-  plot_layout(guides = "collect", axis_titles = "collect") &  # Combine legends
-  theme(legend.position = "bottom")  # Position the legend at the bottom
+  plot_layout(guides = "collect") &  # Combine legends
+  theme(legend.position = "bottom",
+  plot.tag = element_text(size = 20, face = "bold"))  # Position the legend at the bottom
+
+combined_plot_true <- combined_plot_true +
+  plot_annotation(tag_levels = "A")
 ```
 
 #### Save the Plot
@@ -139,15 +203,28 @@ ggsave("../Plots/true_discovery_rates.png", combined_plot_true, width = 12, heig
 endog_false_discovery_rates <- data.frame(
   m = c(100, 200, 400, 800, 1600, 3200),
   endog_mle05 = numeric(length(m)),
-  endog_mle01 = numeric(length(m)),
   endog_hs = numeric(length(m)),
   endog_ridge = numeric(length(m))
 )
 
 for (i in seq_along(methods)) {
-  endog_false_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters[2:27] ==  0]))$discovery_rate
+  endog_false_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters ==  0])[1:23])$discovery_rate
 }
 ```
+
+```{r}
+discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters ==  0])[1:23])$data %>%
+  group_by(m, Iteration) %>%
+  summarise(
+    discovery_rate = mean(selected, na.rm = TRUE)
+  ) %>%
+  # plot histogram by m
+  ggplot(aes(x = discovery_rate)) +
+  geom_histogram(binwidth = 0.05) +
+  # facet wrap with same scales
+  facet_wrap(~m, scales = "free_y")
+```
+
 
 #### Exogenous Effects
 
@@ -155,27 +232,43 @@ for (i in seq_along(methods)) {
 exog_false_discovery_rates <- data.frame(
   m = c(100, 200, 400, 800, 1600, 3200),
   exog_mle05 = numeric(length(m)),
-  exog_mle01 = numeric(length(m)),
   exog_hs = numeric(length(m)),
   exog_ridge = numeric(length(m))
 )
 
 for (i in seq_along(methods)) {
-  exog_false_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters[28:51] ==  0]))$discovery_rate
+  exog_false_discovery_rates[,i+1] <- discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters ==  0])[24:38])$discovery_rate
 }
+```
+
+```{r}
+discovery_rate(parameters, estimates, m = c(100, 200, 400, 800, 1600, 3200), edgelists, estimation = methods[i], coefficients = names(parameters[parameters ==  0])[24:38])$data %>%
+  group_by(m, Iteration) %>%
+  summarise(
+    discovery_rate = mean(selected, na.rm = TRUE)
+  ) %>%
+  # plot histogram by m
+  ggplot(aes(x = discovery_rate)) +
+  geom_histogram(binwidth = 0.05) +
+  # facet wrap with same scales
+  facet_wrap(~m, scales = "free_y")
 ```
 
 #### Plots
 
 ```{r}
-endog_plot_false <- plot_false_discovery_rates(endog_false_discovery_rates, "Endogenous Effects")
-exog_plot_false <- plot_false_discovery_rates(exog_false_discovery_rates, "Exogenous Effects")
+endog_plot_false <- plot_false_discovery_rates(endog_false_discovery_rates)
+exog_plot_false <- plot_false_discovery_rates(exog_false_discovery_rates)
 
 
 # Combine the plots and collect axis titles and legends
 combined_plot_false <- (endog_plot_false + exog_plot_false) +
   plot_layout(guides = "collect", axis_titles = "collect") &  # Combine legends
-  theme(legend.position = "bottom")  # Position the legend at the bottom
+  theme(legend.position = "bottom",
+  plot.tag = element_text(size = 20, face = "bold"))
+
+combined_plot_false <- combined_plot_false +
+  plot_annotation(tag_levels = "A")
 ```
 
 #### Save the Plot
@@ -190,23 +283,36 @@ ggsave("../Plots/false_discovery_rates.png", combined_plot_false, width = 12, he
 bias_mle <- bias_estimates(parameters = parameters,
                estimates = estimates,
                method = "mle_coefs") %>%
-  select(bias) %>%
-  summarise(mean = mean(bias, na.rm = TRUE),
-            variance = var(bias, na.rm = TRUE))
+  group_by(m, iteration) %>%
+  summarise(mean_iter = mean(bias, na.rm = TRUE)) %>%
+  group_by(m) %>%
+  summarise(mean = mean(mean_iter, na.rm = TRUE),
+            variance = var(mean_iter, na.rm = TRUE))
 
 bias_hs <- bias_estimates(parameters = parameters,
                estimates = estimates,
                method = "shrink_coefs_hs") %>%
-  select(bias) %>%
-  summarise(mean = mean(bias, na.rm = TRUE),
-            variance = var(bias, na.rm = TRUE))
+  group_by(m, iteration) %>%
+  summarise(mean_iter = mean(bias, na.rm = TRUE)) %>%
+  group_by(m) %>%
+  summarise(mean = mean(mean_iter, na.rm = TRUE),
+            variance = var(mean_iter, na.rm = TRUE))
 
 bias_ridge <- bias_estimates(parameters = parameters,
                estimates = estimates,
                method = "shrink_coefs_ridge") %>%
-  select(bias) %>%
-  summarise(mean = mean(bias, na.rm = TRUE),
-            variance = var(bias, na.rm = TRUE))
+  group_by(m, iteration) %>%
+  summarise(mean_iter = mean(bias, na.rm = TRUE)) %>%
+  group_by(m) %>%
+  summarise(mean = mean(mean_iter, na.rm = TRUE),
+            variance = var(mean_iter, na.rm = TRUE))
+```
+Summary over all $M$s
+
+```{r}
+mean(bias_mle$mean)
+mean(bias_hs$mean)
+mean(bias_ridge$mean)
 ```
 
 
@@ -215,206 +321,137 @@ bias_ridge <- bias_estimates(parameters = parameters,
 ### 4.3.1 In-Sample Predictions
 
 ```{r}
-m = c(100, 200, 400, 800, 1600, 3200)
+#| warning: false
+#| eval: false
 
-# Initialize an empty data frame to store results
-results <- data.frame(
-  m = integer(),
-  iteration = integer(),
-  pp_mle = numeric(),
-  pp_ridge = numeric(),
-  pp_hs = numeric()
-)
+pp_is_95 <- pp_is_all(edgelists = edgelists,
+          m = c(100, 200, 400, 800, 1600, 3200),
+          parameters = parameters,
+          covar = covar,
+          estimates = estimates,
+          quantile = 0.95)
 
-# Iterate through the values of m and the 20 iterations
-for (i in seq_along(m)) {
-  m_key <- paste0("m=", m[i])
-  for (j in 1:30) {
-    # Initialize variables for the current iteration
-    mle_value <- NA
-    ridge_value <- NA
-    hs_value <- NA
+pp_is_90 <- pp_is_all(edgelists = edgelists,
+          m = c(100, 200, 400, 800, 1600, 3200),
+          parameters = parameters,
+          covar = covar,
+          estimates = estimates,
+          quantile = 0.90)
 
-    # Attempt to compute predictive performance, filling with NA if an error occurs
-    tryCatch({
-      mle_value <- predictive_performance(
-        edgelists[[j]][1:m[i], ], covar,
-        estimates[[m_key]][["mle_coefs"]][[j]][, 1],
-        generate_formula(parameters), warnings = FALSE
-      )
-    }, error = function(e) {
-      mle_value <- NA
-    })
-
-    tryCatch({
-      ridge_value <- predictive_performance(
-        edgelists[[j]][1:m[i], ], covar,
-        estimates[[m_key]][["shrink_coefs_ridge"]][[j]][, 4],
-        generate_formula(parameters), warnings = FALSE
-      )
-    }, error = function(e) {
-      ridge_value <- NA
-    })
-
-    tryCatch({
-      hs_value <- predictive_performance(
-        edgelists[[j]][1:m[i], ], covar,
-        estimates[[m_key]][["shrink_coefs_hs"]][[j]][, 4],
-        generate_formula(parameters), warnings = FALSE
-      )
-    }, error = function(e) {
-      hs_value <- NA
-    })
-
-    # Append the results to the data frame
-    results <- results %>% add_row(
-      m = m[i],
-      iteration = j,
-      pp_mle = mle_value,
-      pp_ridge = ridge_value,
-      pp_hs = hs_value
-    )
-  }
-}
-
-library(dplyr)
-library(kableExtra)
-
-latex_table <- results %>%
-  group_by(m) %>%
-  summarise(
-    pp_mle = round(mean(pp_mle, na.rm = TRUE), 3),
-    pp_ridge = round(mean(pp_ridge, na.rm = TRUE), 3),
-    pp_hs = round(mean(pp_hs, na.rm = TRUE), 3)
-  ) %>%
-  rowwise() %>%
-  mutate(
-    max_value = max(c(pp_mle, pp_ridge, pp_hs), na.rm = TRUE),
-    pp_mle = ifelse(pp_mle == max_value, 
-                    cell_spec(pp_mle, "latex", bold = TRUE), 
-                    as.character(pp_mle)),
-    pp_ridge = ifelse(pp_ridge == max_value, 
-                      cell_spec(pp_ridge, "latex", bold = TRUE), 
-                      as.character(pp_ridge)),
-    pp_hs = ifelse(pp_hs == max_value, 
-                   cell_spec(pp_hs, "latex", bold = TRUE), 
-                   as.character(pp_hs))
-  ) %>%
-  select(-max_value) %>%  # Drop the temporary max_value column
-  ungroup() %>%
-  kableExtra::kable(
-    format = "latex", 
-    escape = FALSE,  # Render LaTeX formatting in cells
-    col.names = c("Events (M)", "MLE", "Ridge", "HS"),
-    caption = "Predictive Performance for Different Models and Events (M)", 
-    booktabs = TRUE
-  ) %>%
-  kableExtra::kable_styling(full_width = FALSE)
-
-# Print LaTeX code to the console
-cat(latex_table)
+pp_is_80 <- pp_is_all(edgelists = edgelists,
+          m = c(100, 200, 400, 800, 1600, 3200),
+          parameters = parameters,
+          covar = covar,
+          estimates = estimates,
+          quantile = 0.80)
 ```
 
-### 4.2.2 Out-of-Sample Predictive Performance
+```{r}
+#| warning: false
+#| eval: false
+
+save(pp_is_95, pp_is_90, pp_is_80, file = "../GeneratedData/pp_is.RData")
+
+# Combined and summarized in-sample predictive performance
+pp_is_95 <- pp_is_95 %>% mutate(quantile = 0.95)
+pp_is_90 <- pp_is_90 %>% mutate(quantile = 0.90)
+pp_is_80 <- pp_is_80 %>% mutate(quantile = 0.80)
+
+pp_is <- rbind(pp_is_95, pp_is_90, pp_is_80) %>%
+  group_by(m, quantile) %>%
+  summarise(
+    mle = mean(mle, na.rm = TRUE),
+    hs = mean(hs, na.rm = TRUE),
+    ridge = mean(ridge, na.rm = TRUE)
+  )
+
+save(pp_is, file = "../GeneratedData/pp_is_combined.RData")
+```
+
+
+### 4.3.2 Out-of-Sample Predictive Performance
+
+```{r}
+#| warning: false
+#| eval: false
+
+pp_oos_95 <- pp_oos_all(edgelists = edgelists,
+          m = c(100, 200, 400, 800, 1600),
+          parameters = parameters,
+          covar = covar,
+          estimates = estimates,
+          quantile = 0.95)
+```
 
 
 ```{r}
-m = c(100, 200, 400, 800, 1600, 3200)
+#| warning: false
+#| eval: false
 
-# Initialize an empty data frame to store results
-results_oos <- data.frame(
-  m = integer(),
-  iteration = integer(),
-  pp_mle = numeric(),
-  pp_ridge = numeric(),
-  pp_hs = numeric()
-)
-
-# Iterate through the values of m and the 20 iterations
-for (i in seq_along(m)) {
-  m_key <- paste0("m=", m[i])
-  for (j in 1:20) {
-    # Initialize variables for the current iteration
-    mle_value <- NA
-    ridge_value <- NA
-    hs_value <- NA
-
-    # Attempt to compute predictive performance, filling with NA if an error occurs
-    tryCatch({
-      mle_value <- predictive_performance(
-        edgelists[[j]][(m[i]+1):(m[i]+500), ], covar,
-        estimates[[m_key]][["mle_coefs"]][[j]][, 1],
-        generate_formula(parameters), warnings = FALSE
-      )
-    }, error = function(e) {
-      mle_value <- NA
-    })
-
-    tryCatch({
-      ridge_value <- predictive_performance(
-        edgelists[[j]][(m[i]+1):(m[i]+500), ], covar,
-        estimates[[m_key]][["shrink_coefs_ridge"]][[j]][, 4],
-        generate_formula(parameters), warnings = FALSE
-      )
-    }, error = function(e) {
-      ridge_value <- NA
-    })
-
-    tryCatch({
-      hs_value <- predictive_performance(
-        edgelists[[j]][(m[i]+1):(m[i]+500), ], covar,
-        estimates[[m_key]][["shrink_coefs_hs"]][[j]][, 4],
-        generate_formula(parameters), warnings = FALSE
-      )
-    }, error = function(e) {
-      hs_value <- NA
-    })
-
-    # Append the results to the data frame
-    results_oos <- results_oos %>% add_row(
-      m = m[i],
-      iteration = j,
-      pp_mle = mle_value,
-      pp_ridge = ridge_value,
-      pp_hs = hs_value
-    )
-  }
-}
-
-library(dplyr)
-library(kableExtra)
-
-latex_table <- results_oos %>%
-  group_by(m) %>%
-  summarise(
-    pp_mle = round(mean(pp_mle, na.rm = TRUE), 3),
-    pp_ridge = round(mean(pp_ridge, na.rm = TRUE), 3),
-    pp_hs = round(mean(pp_hs, na.rm = TRUE), 3)
-  ) %>%
-  rowwise() %>%
-  mutate(
-    max_value = max(c(pp_mle, pp_ridge, pp_hs), na.rm = TRUE),
-    pp_mle = ifelse(pp_mle == max_value, 
-                    cell_spec(pp_mle, "latex", bold = TRUE), 
-                    as.character(pp_mle)),
-    pp_ridge = ifelse(pp_ridge == max_value, 
-                      cell_spec(pp_ridge, "latex", bold = TRUE), 
-                      as.character(pp_ridge)),
-    pp_hs = ifelse(pp_hs == max_value, 
-                   cell_spec(pp_hs, "latex", bold = TRUE), 
-                   as.character(pp_hs))
-  ) %>%
-  select(-max_value) %>%  # Drop the temporary max_value column
-  ungroup() %>%
-  kableExtra::kable(
-    format = "latex", 
-    escape = FALSE,  # Render LaTeX formatting in cells
-    col.names = c("Events (M)", "MLE", "Ridge", "HS"),
-    caption = "Predictive Performance for Different Models and Events (M)", 
-    booktabs = TRUE
-  ) %>%
-  kableExtra::kable_styling(full_width = FALSE)
-
-# Print LaTeX code to the console
-cat(latex_table)
+pp_oos_90 <- pp_oos_all(edgelists = edgelists,
+          m = c(100, 200, 400, 800, 1600),
+          parameters = parameters,
+          covar = covar,
+          estimates = estimates,
+          quantile = 0.90)
+t3 <- Sys.time()
 ```
+
+
+```{r}
+#| warning: false
+#| eval: false
+
+pp_oos_80 <- pp_oos_all(edgelists = edgelists,
+          m = c(100, 200, 400, 800, 1600),
+          parameters = parameters,
+          covar = covar,
+          estimates = estimates,
+          quantile = 0.80)
+```
+
+
+```{r}
+#| eval: false
+
+# Full out-of-sample predictive performance
+save(pp_oos_95, pp_oos_90, pp_oos_80, file = "../GeneratedData/pp_oos.RData")
+
+# Combined and summarized out-of-sample predictive performance
+pp_oos_95 <- pp_oos_95 %>% mutate(quantile = 0.95)
+pp_oos_90 <- pp_oos_90 %>% mutate(quantile = 0.90)
+pp_oos_80 <- pp_oos_80 %>% mutate(quantile = 0.80)
+
+pp_oos <- rbind(pp_oos_95, pp_oos_90, pp_oos_80) %>%
+  group_by(m, quantile) %>%
+  summarise(
+    mle = mean(mle, na.rm = TRUE),
+    hs = mean(hs, na.rm = TRUE),
+    ridge = mean(ridge, na.rm = TRUE)
+  )
+
+save(pp_oos, file = "../GeneratedData/pp_oos_combined.RData")
+```
+
+
+### 4.3.3 Plots
+
+```{r}
+plot_pp_is <- plot_pp(pp_is)
+plot_pp_oos <- plot_pp(pp_oos)
+
+
+combined_plot_pp <- (plot_pp_is / plot_pp_oos) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom",
+  plot.tag = element_text(size = 20, face = "bold"))
+
+
+combined_plot_pp <- combined_plot_pp +
+  plot_annotation(tag_levels = "A")
+```
+
+```{r}
+ggsave("../Plots/predictive_performance.png", combined_plot_pp, width = 12, height = 10)
+```
+

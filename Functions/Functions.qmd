@@ -12,12 +12,12 @@ generate_formula <- function(parameters) {
   terms <- c("1") # Start with intercept
   
   for (name in names(parameters)) {
-    # Detect interaction terms (e.g., "same_z2:difference_z1")
+    # Detect interaction terms
     if (grepl(":", name)) {
       # Split interaction terms
       components <- strsplit(name, ":")[[1]]
       
-      # Process each component of the interaction
+      # Process each part of interaction
       processed_components <- sapply(components, function(component) {
         if (grepl("^difference_", component)) {
           var <- sub("^difference_", "", component)
@@ -118,7 +118,7 @@ generate_formula <- function(parameters) {
         }
       })
       
-      # Add interaction term by joining the processed components with `:`
+      # Add interaction terms by joining effects with `:`
       terms <- c(terms, paste(processed_components, collapse = " : "))
       
     } else if (name == "inertia") {
@@ -218,7 +218,7 @@ generate_formula <- function(parameters) {
     }
   }
   
-  # Combine terms into formula
+  # Combine terms to formula
   formula_text <- paste("~", paste(terms, collapse = " + "))
   formula <- as.formula(formula_text)
   return(formula)
@@ -238,12 +238,12 @@ generate_rem <-function (parameters, # parameters for the model
   formula <- generate_formula(parameters)
   j = 1
   t <- 0 # time of first event
-  dummy <- data.frame(time = 1, actor1 = 1, actor2 = 2)
+  dummy <- data.frame(time = 1, actor1 = 1, actor2 = 2) # create dummy first event
   rehOut <-remify::remify(edgelist = dummy,model = "tie",actors = covar$name,
-                          directed = directed,origin = 0)
+                          directed = directed,origin = 0) # remify the dummy
   
-  out <- remstats(reh = rehOut, tie_effects = formula, attr_actors  = covar)
-  riskset<-attributes(out)$riskset
+  out <- remstats(reh = rehOut, tie_effects = formula, attr_actors  = covar) # compute statistics
+  riskset<-attributes(out)$riskset # get the riskset
   adj <- matrix(0, 1, ncol = nrow(riskset)) # adjacency matrix
   
   
@@ -329,7 +329,7 @@ estimate_models <- function(edgelists, num_cores, parameters, covar) {
       effects <- generate_formula(parameters)
       reh <- remify(edgelists[[i]], directed = TRUE, model = "tie")
       statistics <- remstats(reh = reh, tie_effects = effects, attr_actors = covar)
-      fit <- remstimate::remstimate(reh = reh, stats = statistics, method = "MLE", timing = "interval", ncores = num_cores)
+      fit <- remstimate::remstimate(reh = reh, stats = statistics, method = "MLE", timing = "interval")
       
       coefs <- summary(fit)$coefsTab
       selected_vars_mle_05 <- rownames(coefs[coefs[, 4] < 0.05,])
@@ -353,6 +353,8 @@ estimate_models <- function(edgelists, num_cores, parameters, covar) {
         mle_coefs = coefs, 
         selected_vars_mle_05 = selected_vars_mle_05,
         selected_vars_mle_01 = selected_vars_mle_01,
+        shrink_hs = shrink_hs,
+        shrink_ridge = shrink_ridge,
         shrink_coefs_hs = coefs_shrink_hs,
         shrink_coefs_ridge = coefs_shrink_ridge,
         selected_vars_shrink_hs = selected_vars_shrink_hs,
@@ -376,6 +378,8 @@ estimate_models <- function(edgelists, num_cores, parameters, covar) {
     mle_coefs = lapply(results, `[[`, "mle_coefs"),
     selected_vars_mle_05 = lapply(results, `[[`, "selected_vars_mle_05"),
     selected_vars_mle_01 = lapply(results, `[[`, "selected_vars_mle_01"),
+    shrink_hs = lapply(results, `[[`, "shrink_hs"),
+    shrink_ridge = lapply(results, `[[`, "shrink_ridge"),
     shrink_coefs_hs = lapply(results, `[[`, "shrink_coefs_hs"),
     shrink_coefs_ridge = lapply(results, `[[`, "shrink_coefs_ridge"),
     selected_vars_shrink_hs = lapply(results, `[[`, "selected_vars_shrink_hs"),
@@ -405,21 +409,21 @@ estimate_edgelists <- function(edgelists, parameters, covar, num_cores, m) {
 
 ```{r}
 discovery_rate <- function(parameters,
-                                estimates,
-                                m,
-                                edgelists,
-                                estimation = c("mle_05", "mle_01", "shrink_hs", "shrink_ridge"),
-                                coefficients) {
-  # Ensure valid input for estimation
-  estimation <- match.arg(estimation)
+                           estimates,
+                           m,
+                           edgelists,
+                           estimation = c("mle_05", "mle_01", "shrink_hs", "shrink_ridge"),
+                           coefficients) {
+  
+  estimation <- match.arg(estimation) # check that input is valid
   
   # Extract coefficients and settings
   all_coefficients <- names(parameters)
   num_iterations <- length(edgelists)
   num_coefficients <- length(all_coefficients)
   
-  # Initialize plot data
-  plot_data <- data.frame(
+  # Generate data frame
+  data <- data.frame(
     m = rep(m, each = num_coefficients * num_iterations),
     Iteration = rep(1:num_iterations, each = num_coefficients),
     Coefficient = rep(all_coefficients, times = length(m)),
@@ -436,21 +440,22 @@ discovery_rate <- function(parameters,
         
         # Check for non-NULL and non-empty entries
         if (!is.null(selected_vars) && length(selected_vars) > 0) {
-          plot_data$selected[plot_data$m == m[i] &
-                               plot_data$Iteration == j &
-                               plot_data$Coefficient %in% selected_vars] <- "selected"
+          data$selected[data$m == m[i] &
+                               data$Iteration == j &
+                               data$Coefficient %in% selected_vars] <- "selected"
         }
       }
     }
   }
   
   # Create the plot
-  discovery_rate <- plot_data %>%
+  discovery_rate <- data %>%
     mutate(
       Coefficient = factor(Coefficient, levels = c(
         names(parameters[parameters != 0]), names(parameters[parameters == 0])
       )),
-      selected = factor(selected, levels = c("not selected", "selected"))) %>%
+      selected = factor(selected, levels = c("not selected", "selected"))
+    ) %>%
     filter(Coefficient %in% coefficients) %>%
     group_by(m) %>%
     summarise(
@@ -460,15 +465,24 @@ discovery_rate <- function(parameters,
     ) %>%
     ungroup()
   
-  return(discovery_rate)
+  data <- data %>%
+    mutate(
+      Coefficient = factor(Coefficient, levels = c(
+        names(parameters[parameters != 0]), names(parameters[parameters == 0])
+      )),
+      selected = selected == "selected") %>%
+    filter(Coefficient %in% coefficients)
+  
+  return(list(discovery_rate = discovery_rate$discovery_rate, 
+              data = data))
 }  
 ```
 
 ### 3.1.2 Function to Plot True Discovery Rate
 
 ```{r}
-plot_true_discovery_rates <- function(data, plot_title) {
-  # Melt the data frame
+plot_true_discovery_rates <- function(data) {
+  # Melt data frame
   melted_data <- reshape2::melt(
     data,
     id.vars = "m",
@@ -476,23 +490,51 @@ plot_true_discovery_rates <- function(data, plot_title) {
     value.name = "TrueDiscoveryRate"
   )
   
-  # Create the plot using ggplot2
-  ggplot2::ggplot(melted_data, ggplot2::aes(x = m, y = TrueDiscoveryRate, group = Method, shape = Method, linetype = Method)) +
-    ggplot2::geom_line() +
-    ggplot2::geom_point(size = 1.5) +
-    ggplot2::ylim(0,1) +
+  # Set custom colors
+  color_palette <- c("#D55E00", "#0072B2", "#009E73", "#CC79A7")
+  
+  # Create plot
+  ggplot2::ggplot(
+    melted_data,
+    ggplot2::aes(
+      x = m,
+      y = TrueDiscoveryRate,
+      group = Method,
+      shape = Method,
+      linetype = Method,
+      color = Method
+    )
+  ) +
+    ggplot2::geom_line(linewidth = 1) +
+    ggplot2::geom_point(size = 2.5) +
+    ggplot2::ylim(0, 1) +
     ggplot2::scale_x_continuous(breaks = c(100, 200, 400, 800, 1600, 3200)) +
-    ggplot2::labs(x = "Events (M)", y = "True Discovery Rate", title = plot_title) +
+    ggplot2::labs(x = "Events (M)", y = "True Discovery Rate") +
     ggplot2::theme_minimal() +
-    ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5),
-                   axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)) +
-    ggplot2::scale_shape_manual(
-      values = c(16, 17, 15, 18),
-      labels = c("MLE (p<0.05)", "MLE (p<0.01)", "Horseshoe (95% HDI)", "Ridge (95% HDI)")
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(hjust = 0.5),
+      axis.title.x = ggplot2::element_text(size = 14),
+      axis.text.x = ggplot2::element_text(
+        angle = 45,
+        hjust = 1,
+        size = 10
+      ),
+      axis.title.y = ggplot2::element_text(size = 14),
+      axis.text.y = ggplot2::element_text(size = 12),
+      legend.title = ggplot2::element_text(size = 14),
+      legend.text = ggplot2::element_text(size = 12)
     ) +
-    ggplot2::scale_linetype_manual(
-      values = c("solid", "dotted", "dashed", "dotdash"),
-      labels = c("MLE (p<0.05)", "MLE (p<0.01)", "Horseshoe (95% HDI)", "Ridge (95% HDI)")
+    ggplot2::scale_shape_manual("Selection Criterion",
+      values = c(16, 17, 15, 18),
+      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
+    ) +
+    ggplot2::scale_linetype_manual("Selection Criterion",
+      values = c("solid", "dotted", "longdash"),
+      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
+    ) +
+    ggplot2::scale_colour_manual("Selection Criterion",
+      values = color_palette,
+      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
     )
 }
 
@@ -502,7 +544,7 @@ plot_true_discovery_rates <- function(data, plot_title) {
 ### 3.1.3 Function to Plot False Discovery Rate
 
 ```{r}
-plot_false_discovery_rates <- function(data, plot_title) {
+plot_false_discovery_rates <- function(data) {
   # Melt the data frame
   melted_data <- reshape2::melt(
     data,
@@ -511,25 +553,54 @@ plot_false_discovery_rates <- function(data, plot_title) {
     value.name = "FalseDiscoveryRate"
   )
   
-  # Create the plot using ggplot2
-  ggplot2::ggplot(melted_data, ggplot2::aes(x = m, y = FalseDiscoveryRate, group = Method, shape = Method, linetype = Method)) +
-    ggplot2::geom_line() +
-    ggplot2::geom_point(size = 1.5) +
-    ggplot2::ylim(0,0.35) +
+  # Set custom colors
+  color_palette <- c("#D55E00", "#0072B2", "#009E73", "#CC79A7")
+  
+  # Create plot
+  ggplot2::ggplot(
+    melted_data,
+    ggplot2::aes(
+      x = m,
+      y = FalseDiscoveryRate,
+      group = Method,
+      shape = Method,
+      linetype = Method,
+      color = Method
+    )
+  ) +
+    ggplot2::geom_line(linewidth = 1) +
+    ggplot2::geom_point(size = 2.5) +
+    ggplot2::ylim(0, 0.35) +
     ggplot2::scale_x_continuous(breaks = c(100, 200, 400, 800, 1600, 3200)) +
-    ggplot2::labs(x = "Events (M)", y = "False Discovery Rate", title = plot_title) +
+    ggplot2::labs(x = "Events (M)", y = "False Discovery Rate") +
     ggplot2::theme_minimal() +
-    ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5),
-                   axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)) +
-    ggplot2::scale_shape_manual(
-      values = c(16, 17, 15, 18),
-      labels = c("MLE (p<0.05)", "MLE (p<0.01)", "Horseshoe (95% HDI)", "Ridge (95% HDI)")
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(hjust = 0.5),
+      axis.title.x = ggplot2::element_text(size = 14),
+      axis.text.x = ggplot2::element_text(
+        angle = 45,
+        hjust = 1,
+        size = 10
+      ),
+      axis.title.y = ggplot2::element_text(size = 14),
+      axis.text.y = ggplot2::element_text(size = 12),
+      legend.title = ggplot2::element_text(size = 14),
+      legend.text = ggplot2::element_text(size = 12)
     ) +
-    ggplot2::scale_linetype_manual(
-      values = c("solid", "dotted", "dashed", "dotdash"),
-      labels = c("MLE (p<0.05)", "MLE (p<0.01)", "Horseshoe (95% HDI)", "Ridge (95% HDI)")
+    ggplot2::scale_shape_manual("Selection Criterion",
+      values = c(16, 17, 15, 18),
+      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
+    ) +
+    ggplot2::scale_linetype_manual("Selection Criterion",
+      values = c("solid", "dotted", "longdash"),
+      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
+    ) +
+    ggplot2::scale_colour_manual("Selection Criterion",
+      values = color_palette,
+      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
     )
 }
+
 ```
 
 ### 3.1.4 Function to Plot Selected Variables
@@ -540,15 +611,15 @@ significance_plot <- function(parameters,
                               m,
                               edgelists,
                               estimation = c("mle_05", "mle_01", "shrink_hs", "shrink_ridge")) {
-  # Ensure valid input for estimation
+  # Check that estimation is valid
   estimation <- match.arg(estimation)
   
-  # Extract coefficients and settings
+  # Get coefficients and settings
   all_coefficients <- names(parameters)
   num_iterations <- length(edgelists)
   num_coefficients <- length(all_coefficients)
   
-  # Initialize plot data
+  # Create data frame
   plot_data <- data.frame(
     m = rep(m, each = num_coefficients * num_iterations),
     Iteration = rep(1:num_iterations, each = num_coefficients),
@@ -660,12 +731,10 @@ bias_estimates <- function(parameters,
   true <- unlist(parameters)
   names(true) <- names(parameters)
   
-  # Initialize plot data
-  data <- data.frame(
-    m = rep(m, each = num_iterations),
-    Iteration = rep(1:num_iterations, times = length(m)),
-    bias = NA_real_
-  )
+  # Create data frame
+  data <- as.data.frame(matrix(NA, nrow = length(m) * num_iterations * num_coefficients, ncol = 4))
+  
+  colnames(data) <- c("m", "iteration", "coefficient", "bias")
   
   for (i in seq_along(m)) {
     m_key <- paste0("m=", m[i])
@@ -674,33 +743,47 @@ bias_estimates <- function(parameters,
       if (selected_key == "mle_coefs") {
         estimate <- estimates[[m_key]][[selected_key]][[j]][, 1]
       } else {
-        estimate <- estimates[[m_key]][[selected_key]][[j]][, 2]
+        estimate <- estimates[[m_key]][[selected_key]][[j]][, 4]
       }
-      bias <- estimate - true
-      data$bias[(i - 1) * num_iterations + j] <- mean(bias)
+      
+      start_index <- ((i-1)*(num_iterations*num_coefficients)+(j-1)*num_coefficients+1)
+end_index <- start_index + num_coefficients - 1
+index <- start_index:end_index
+
+bias <- estimate - true
+
+      data$m[index] <- m[i]
+      data$iteration[index] <- j
+      data$coefficient[index] <- names(parameters)
+      data$bias[index] <- if (length(bias) == 0 || is.null(bias)) NA else bias
     }
   }
   
   return(data)
 }
+
 ```
 
 
 ## 3.3 Predictive Performance
 
-### Function for Predictive Performance
+### 3.3.1 Predictive Performance for One Edgelist
 
 ```{r}
-predictive_performance <- function(edgelist, covar, coefficients, effects, quantile = 0.95, warnings = TRUE) {
+predictive_performance_all <- function(edgelist,
+                                   covar,
+                                   coefficients,
+                                   reh,
+                                   statistics,
+                                   quantile = 0.95,
+                                   warnings = TRUE) {
   top5 <- rep(FALSE, nrow(edgelist))
   
   if (!warnings) {
     suppressWarnings({
-      reh <- remify(edgelist, directed = TRUE, model = "tie", riskset = "full")
-      statistics <- remstats(reh = reh, tie_effects = effects, attr_actors = covar)
-      
       for (i in 1:nrow(edgelist)) {
         
+        # Calculate event rates for every actor in R
         lambda <- exp(as.numeric(statistics[i,,] %*% coefficients))
         
         # Extract top 5% of lambdas row indices
@@ -708,15 +791,13 @@ predictive_performance <- function(edgelist, covar, coefficients, effects, quant
         # extract specific dyad that belongs to this row
         top_5_dyads <- getDyad(x = reh, dyadID = top_5_lambda)[,2:3]
         
-        actual <- edgelists[[1]][i,c(2,3)]
+        actual <- edgelist[i,c(2,3)]
         
         # Check if actual is part of top_5_dyads
         top5[i] <- nrow(merge(actual, top_5_dyads)) > 0
       }
     })
   } else {
-    reh <- remify(edgelist, directed = TRUE, model = "tie")
-    statistics <- remstats(reh = reh, tie_effects = effects, attr_actors = covar)
     
     for (i in 1:nrow(edgelist)) {
       
@@ -727,7 +808,7 @@ predictive_performance <- function(edgelist, covar, coefficients, effects, quant
       # extract specific dyad that belongs to this row
       top_5_dyads <- getDyad(x = reh, dyadID = top_5_lambda)[,2:3]
       
-      actual <- edgelists[[1]][i,c(2,3)]
+      actual <- edgelist[i,c(2,3)]
       
       # Check if actual is part of top_5_dyads
       top5[i] <- nrow(merge(actual, top_5_dyads)) > 0
@@ -738,79 +819,286 @@ predictive_performance <- function(edgelist, covar, coefficients, effects, quant
 }
 ```
 
-### From Karimova et al. (2023)
+
+### 3.3.2 In-Sample Predictive Performance for All Edgelists
 
 ```{r}
-get.insample.pred <- function(beta, Events, stat, M, warnings = FALSE){
-  
-  if (!warnings) {
-    suppressWarnings({
-  # Get temporary data.frame with event ranks and indicators for ranks in the 
-  # set
-  temp <- matrix(unlist(lapply(1:M, function(i){
-    Z <- stat[i,,]%*%beta 
-    Z_ordered <- order(Z, decreasing = T)
-    return(cbind(which(Z_ordered == Events[i, 3]), which.max(Z) == Events[i, 3],
-                 sum(Z_ordered[1:floor(0.05*length(Z))] == Events[i, 3]), 
-                 sum(Z_ordered[1:floor(0.1*length(Z))] == Events[i, 3]), 
-                 sum(Z_ordered[1:floor(0.2*length(Z))] == Events[i, 3])))
-  })), nrow = M, byrow = T)
-  
-  # Summarize the temporary data.frame
-  res = data.frame("strict" = sum(temp[,2])/M,
-                   "five" = sum(temp[,3])/M, 
-                   "ten" = sum(temp[,4])/M,
-                   "twenty" = sum(temp[,5])/M)
-    })
-  } else {
-    temp <- matrix(unlist(lapply(1:M, function(i){
-      X_i <- stat[i,,]
-      Z <- X_i%*%beta 
-      Z_ordered <- order(Z, decreasing = T)
-      return(cbind(which(Z_ordered == Events[i, 3]), 
-                   which.max(Z) == Events[i, 3],
-                   sum(Z_ordered[1:floor(0.05*length(Z))] == Events[i, 3]), 
-                   sum(Z_ordered[1:floor(0.1*length(Z))] == Events[i, 3]), 
-                   sum(Z_ordered[1:floor(0.2*length(Z))] == Events[i, 3])))
-    })), nrow = M, byrow = T)
-    
-    res = data.frame("strict" = sum(temp[,2])/M,
-                     "five" = sum(temp[,3])/M, 
-                     "ten" = sum(temp[,4])/M,
-                     "twenty" = sum(temp[,5])/M)
+pp_is_all <- function(edgelists, m, parameters, covar, estimates, quantile = 0.95) {
+  # Data frame to store results
+  pp_all <- as.data.frame(matrix(NA, nrow = length(edgelists) * length(m), ncol = 5))
+  colnames(pp_all) <- c("m", "iteration", "mle", "ridge", "hs")
+
+  # Loop over each edgelist
+  for (j in seq_along(edgelists)) {
+    # Prepare the remify and remstats objects
+    reh <- remify(edgelists[[j]],
+                  directed = TRUE,
+                  model = "tie",
+                  riskset = "full")
+    statistics <- remstats(
+      reh = reh,
+      tie_effects = generate_formula(parameters),
+      attr_actors = covar
+    )
+
+    # Loop over each value of m
+    for (i in seq_along(m)) {
+      m_key <- paste0("m=", m[i])
+      row <- (i - 1) * length(edgelists) + j
+      pp_all[row, 1] <- m[i]
+      pp_all[row, 2] <- j
+
+      # Calculate predictive performance for MLE
+      pp_all[row, 3] <- tryCatch({
+        predictive_performance_all(
+          edgelist = edgelists[[j]][1:m[i], ],
+          covar = covar,
+          coefficients = estimates[[m_key]][["mle_coefs"]][[j]][, 1],
+          reh = reh,
+          statistics = statistics,
+          quantile = quantile
+        )
+      }, error = function(e) {
+        NA
+      })
+
+      # Calculate predictive performance for ridge
+      pp_all[row, 4] <- tryCatch({
+        predictive_performance_all(
+          edgelist = edgelists[[j]][1:m[i], ],
+          covar = covar,
+          coefficients = estimates[[m_key]][["shrink_coefs_ridge"]][[j]][, 4],
+          reh = reh,
+          statistics = statistics,
+          quantile = quantile,
+          warnings = FALSE
+        )
+      }, error = function(e) {
+        NA
+      })
+
+      # Calculate predictive performance for horseshoe
+      pp_all[row, 5] <- tryCatch({
+        predictive_performance_all(
+          edgelist = edgelists[[j]][1:m[i], ],
+          covar = covar,
+          coefficients = estimates[[m_key]][["shrink_coefs_hs"]][[j]][, 4],
+          reh = reh,
+          statistics = statistics,
+          quantile = quantile,
+          warnings = FALSE
+        )
+      }, error = function(e) {
+        NA
+      })
+    }
   }
-  # Output
-  list(rank_observed_mean = mean(temp[,1]),
-       rank_observed_vector = temp[,1],
-       scores = res) 
+
+  return(pp_all)
+}
+
+```
+
+### 3.3.3 Out-of-Sample Predictive Performance for All Edgelists
+
+```{r}
+pp_oos_all <- function(edgelists, m, parameters, covar, estimates, quantile = 0.95, new = 500) {
+  # Data frame to store results
+  pp_all <- as.data.frame(matrix(NA, nrow = length(edgelists) * length(m), ncol = 5))
+  colnames(pp_all) <- c("m", "iteration", "mle", "ridge", "hs")
+
+  # Loop over each edgelist
+  for (j in seq_along(edgelists)) {
+    # Prepare the remify and remstats objects
+    reh <- remify(edgelists[[j]],
+                  directed = TRUE,
+                  model = "tie",
+                  riskset = "full")
+    statistics <- remstats(
+      reh = reh,
+      tie_effects = generate_formula(parameters),
+      attr_actors = covar
+    )
+
+    # Loop over each value of m
+    for (i in seq_along(m)) {
+      m_key <- paste0("m=", m[i])
+      row <- (i - 1) * length(edgelists) + j
+      pp_all[row, 1] <- m[i]
+      pp_all[row, 2] <- j
+      
+      edgelist_oos <- edgelists[[j]][(m[i]+1):(m[i]+new), ]
+
+      # Calculate predictive performance for MLE
+      pp_all[row, 3] <- tryCatch({
+        predictive_performance_all(
+          edgelist = edgelist_oos,
+          covar = covar,
+          coefficients = estimates[[m_key]][["mle_coefs"]][[j]][, 1],
+          reh = reh,
+          statistics = statistics,
+          quantile = quantile,
+          warnings = FALSE
+        )
+      }, error = function(e) {
+        NA
+      })
+
+      # Calculate predictive performance for ridge
+      pp_all[row, 4] <- tryCatch({
+        predictive_performance_all(
+          edgelist = edgelist_oos,
+          covar = covar,
+          coefficients = estimates[[m_key]][["shrink_coefs_ridge"]][[j]][, 4],
+          reh = reh,
+          statistics = statistics,
+          quantile = quantile,
+          warnings = FALSE
+        )
+      }, error = function(e) {
+        NA
+      })
+
+      # Calculate predictive performance for horseshoe (hs)
+      pp_all[row, 5] <- tryCatch({
+        predictive_performance_all(
+          edgelist = edgelist_oos,
+          covar = covar,
+          coefficients = estimates[[m_key]][["shrink_coefs_hs"]][[j]][, 4],
+          reh = reh,
+          statistics = statistics,
+          quantile = quantile,
+          warnings = FALSE
+        )
+      }, error = function(e) {
+        NA
+      })
+    }
+  }
+
+  return(pp_all)
 }
 ```
 
+### 3.3.4 Function to Generate LaTeX Tables
+
 ```{r}
-get.outofsample.pred <- function(beta, Events, stat, M, n){
+pp_latex <- function(pp_data) {
+  latex_table <- pp_data %>%
+    group_by(m) %>%
+    summarise(
+      pp_mle = round(mean(mle, na.rm = TRUE), 3),
+      pp_ridge = round(mean(ridge, na.rm = TRUE), 3),
+      pp_hs = round(mean(hs, na.rm = TRUE), 3)
+    ) %>%
+    rowwise() %>%
+    mutate(
+      max_value = max(c(pp_mle, pp_ridge, pp_hs), na.rm = TRUE),
+      pp_mle = ifelse(
+        pp_mle == max_value,
+        kableExtra::cell_spec(pp_mle, "latex", bold = TRUE),
+        as.character(pp_mle)
+      ),
+      pp_ridge = ifelse(
+        pp_ridge == max_value,
+        kableExtra::cell_spec(pp_ridge, "latex", bold = TRUE),
+        as.character(pp_ridge)
+      ),
+      pp_hs = ifelse(
+        pp_hs == max_value,
+        kableExtra::cell_spec(pp_hs, "latex", bold = TRUE),
+        as.character(pp_hs)
+      )
+    ) %>%
+    select(-max_value) %>%
+    ungroup() %>%
+    kableExtra::kable(
+      format = "latex",
+      escape = FALSE,
+      col.names = c("Events (M)", "MLE", "Ridge", "HS"),
+      caption = "Predictive Performance for Different Models and Events (M)",
+      booktabs = TRUE
+    ) %>%
+    kableExtra::kable_styling(full_width = FALSE)
   
-  temp <- matrix(unlist(lapply(1:n, function(i){
-    X_i <- stat[(M+i),,]
-    Z <- X_i%*%beta 
-    Z_ordered <- order(Z, decreasing = T)
-    return(cbind(which(Z_ordered == Events[M+i, 3]), 
-                 which.max(Z) == Events[M+i, 3],
-                 sum(Z_ordered[1:floor(0.05*length(Z))] == Events[M+i, 3]), 
-                 sum(Z_ordered[1:floor(0.1*length(Z))] == Events[M+i, 3]), 
-                 sum(Z_ordered[1:floor(0.2*length(Z))] == Events[M+i, 3])))
-  })), nrow = n, byrow = T)
+  return(latex_table)
+}
+
+```
+
+### 3.3.4 Function for Predictive Performance Plots
+
+```{r}
+plot_pp <- function(pp) {
+  # Helper function for labels
+  custom_labels <- function(value) {
+    paste0("Top ", (1 - as.numeric(value)) * 100, "%")
+  }
   
+  # Melt the data for ggplot
+  melted_pp <- melt(
+    pp,
+    id.vars = c("m", "quantile"),
+    variable.name = "Method",
+    value.name = "Value"
+  )
   
-  res = data.frame("strict" = round(sum(temp[,2]), 4),
-                   "five" = round(sum(temp[,3]), 4), 
-                   "ten" = round(sum(temp[,4]), 4),
-                   "twenty" = round(sum(temp[,5]), 4))
+  # Set colors
+  color_palette <- c("#D55E00", "#0072B2", "#009E73")
   
-  return(list(rank_observed_mean = mean(temp[,1]),
-              rank_observed_vector = temp[,1],
-              scores = res/n))  
+  # Create plot
+  plot <- ggplot(
+    melted_pp,
+    aes(
+      x = m,
+      y = Value,
+      group = Method,
+      shape = Method,
+      linetype = Method,
+      color = Method
+    )
+  ) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 2.5) +
+    scale_x_continuous(
+      breaks = c(100, 200, 400, 800, 1600, 3200),
+      labels = c("100", "200", "400", "800", "1600", "3200"),
+      limits = c(0, 3200)
+    ) +
+    ylim(0.88, 1) +
+    labs(x = "Events (M)", y = "Predictive Performance", ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14),
+      axis.title.x = element_text(size = 12),
+      axis.text.x = element_text(
+        angle = 45,
+        hjust = 1,
+        size = 10
+      ),
+      axis.title.y = element_text(size = 12),
+      axis.text.y = element_text(size = 10),
+      legend.title = element_text(size = 12),
+      legend.text = element_text(size = 10),
+      legend.position = "bottom",
+      strip.text = element_text(size = 14)
+    ) +
+    scale_shape_manual("Model",
+                        values = c(16, 17, 15),
+                       labels = c("MLE", "ABR HS", "ABR Ridge")) +
+    scale_linetype_manual("Model",
+      values = c("solid", "dotted", "longdash"),
+      labels = c("MLE", "ABR HS", "ABR Ridge")
+    ) +
+    scale_colour_manual("Model",
+                        values = color_palette,
+                        labels = c("MLE", "ABR HS", "ABR Ridge")) +
+    facet_wrap( ~ quantile, labeller = labeller(quantile = custom_labels))
+  
+  return(plot)
 }
 ```
+
 
 
 # 3. Save the Functions
