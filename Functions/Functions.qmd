@@ -526,15 +526,15 @@ plot_true_discovery_rates <- function(data) {
     ) +
     ggplot2::scale_shape_manual("Selection Criterion",
       values = c(16, 17, 15, 18),
-      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
+      labels = c("\u03B1 = 0.05 (MLE)", "95% HDI (ABR HS)", "95% HDI (ABR Ridge)")
     ) +
     ggplot2::scale_linetype_manual("Selection Criterion",
       values = c("solid", "dotted", "longdash"),
-      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
+      labels = c("\u03B1 = 0.05 (MLE)", "95% HDI (ABR HS)", "95% HDI (ABR Ridge)")
     ) +
     ggplot2::scale_colour_manual("Selection Criterion",
       values = color_palette,
-      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
+      labels = c("\u03B1 = 0.05 (MLE)", "95% HDI (ABR HS)", "95% HDI (ABR Ridge)")
     )
 }
 
@@ -589,15 +589,15 @@ plot_false_discovery_rates <- function(data) {
     ) +
     ggplot2::scale_shape_manual("Selection Criterion",
       values = c(16, 17, 15, 18),
-      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
+      labels = c("\u03B1 = 0.05 (MLE)", "95% HDI (ABR HS)", "95% HDI (ABR Ridge)")
     ) +
     ggplot2::scale_linetype_manual("Selection Criterion",
       values = c("solid", "dotted", "longdash"),
-      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
+      labels = c("\u03B1 = 0.05 (MLE)", "95% HDI (ABR HS)", "95% HDI (ABR Ridge)")
     ) +
     ggplot2::scale_colour_manual("Selection Criterion",
       values = color_palette,
-      labels = c("MLE (\u03B1 = 0.05)", "ABR HS (95% HDI)", "ABR Ridge (95% HDI)")
+      labels = c("\u03B1 = 0.05 (MLE)", "95% HDI (ABR HS)", "95% HDI (ABR Ridge)")
     )
 }
 
@@ -1074,7 +1074,7 @@ plot_pp <- function(pp) {
       axis.text.x = element_text(
         angle = 45,
         hjust = 1,
-        size = 10
+        size = 8.5
       ),
       axis.title.y = element_text(size = 12),
       axis.text.y = element_text(size = 10),

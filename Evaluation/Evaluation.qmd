@@ -38,11 +38,11 @@ m <- c(100, 200, 400, 800, 1600, 3200)
 ncores <- 7
 
 t1 <- Sys.time()
-estimates <- estimate_edgelists(edgelists[31:50], parameters, covar, num_cores = ncores, m = m)
+estimates <- estimate_edgelists(edgelists, parameters, covar, num_cores = ncores, m = m)
 t2 <- Sys.time()
 (diff.time <- t2 - t1)
 
-save(estimates, file = "../GeneratedData/estimates_3150.RData")
+save(estimates, file = "../GeneratedData/estimates.RData")
 ```
 
 # 4. Evaluate the Models
@@ -310,9 +310,9 @@ bias_ridge <- bias_estimates(parameters = parameters,
 Summary over all $M$s
 
 ```{r}
-mean(bias_mle$mean)
-mean(bias_hs$mean)
-mean(bias_ridge$mean)
+round(mean(bias_mle$mean),2)
+round(mean(bias_hs$mean),2)
+round(mean(bias_ridge$mean),2)
 ```
 
 
